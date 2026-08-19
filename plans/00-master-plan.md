@@ -15,7 +15,10 @@ trước, chỉ nhận hint khi bị kẹt, được senior mentor review sau m�
 **NovaCart** — công ty thương mại điện tử vừa, bán hàng online.
 
 - Sản phẩm: nền tảng bán lẻ trực tuyến (catalog, kho, đơn hàng, thanh toán).
-- Team: Developer, DevOps/SRE (vai trò của người học), QA, Product/System owner.
+- Team (5 người, roster chi tiết + mapping sang Linux account trong
+  [01-foundation.md](01-foundation.md#team-roster-novacart-engineering)):
+  bạn (DevOps/SRE, mới tuyển), 2 Developer (`dev1`, `dev2` — dev2 kiêm
+  backup on-call), 1 QA (`qa1`), 1 Product Owner (không có Linux account).
 - Môi trường: `dev` → `staging` → `production`.
 - Câu chuyện kiến trúc: hệ thống *bắt đầu như một service đơn (modular
   monolith-ish)* rồi **tự tiến hóa** thành microservices qua các phase, đúng
@@ -167,6 +170,14 @@ hoàn tất và được review.
   sao" buộc người học tự giải thích lại bản chất bằng lời của mình, không
   chỉ hoàn thành acceptance criteria bằng thao tác. Đây là yêu cầu trực tiếp
   từ người học, áp dụng cho toàn bộ chương trình.
+- **Team roster & RBAC model (2026-08-19):** team kỹ thuật NovaCart cố định
+  ở **5 người** — không thêm dev cho đến khi scope vượt quá 1 service (Level
+  3+ khi có thêm `inventory-service`/`order-service`). Lý do: 2 dev là đủ để
+  dạy group-based permission (group chỉ có ý nghĩa khi ≥2 người share cùng
+  profile); vượt quá ~6 người thì bài học đúng phải chuyển sang centralized
+  identity (Okta/LDAP/Teleport) — ngoài phạm vi chương trình hiện tại. Chi
+  tiết account/group/ACL/sudoers nằm trong ticket `NOVA-002`
+  (`01-foundation.md`).
 
 ## Handoff to Next Plan
 

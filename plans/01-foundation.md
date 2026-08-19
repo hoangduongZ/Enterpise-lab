@@ -130,10 +130,115 @@ Reflection Questions (Feynman):
      SELinux chặn gì, bằng ví dụ cụ thể?
 ```
 
+## Team Roster (NovaCart Engineering)
+
+Quyết định 2026-08-19 (xem "Important Decisions" trong
+[00-master-plan.md](00-master-plan.md)): team kỹ thuật NovaCart cố định ở
+**5 người**, mapping sang Linux account trên VPS như sau:
+
+| Người | Vai trò | Linux account | Quyền trên VPS |
+|---|---|---|---|
+| Bạn | DevOps/SRE (mới tuyển) | user tạo ở NOVA-001 | `wheel` — sudo đầy đủ |
+| — | Developer | `dev1` | group `deploy`, `catalog-logs`; không sudo |
+| — | Developer (senior, backup on-call) | `dev2` | group `deploy`, `catalog-logs`; + 1 file riêng trong `sudoers.d` (Cmnd_Alias giới hạn) |
+| — | QA / Test Engineer | `qa1` | không có shell thường — chỉ SFTP chroot jail + ACL read-only trên log |
+| — | Product Owner | *(không tạo account)* | không truy cập server; xem dashboard khi Level 4 (observability) có |
+
+Nguyên tắc: 3/5 người **không** có sudo, 1/5 người **không** có account nào.
+Đây là lesson chính — "5 người trong team" không có nghĩa là "5 sudo user".
+
+## Ticket NOVA-002
+
+Depends on: `NOVA-001` hoàn tất (user vận hành + SSH key-based access phải
+hoạt động trước khi tạo thêm account).
+
+```text
+Ticket ID: NOVA-002
+Title: Thiết lập tài khoản & phân quyền cho team NovaCart theo least-privilege
+Priority: P1
+Severity: N/A (onboarding/RBAC task, không phải incident)
+Business Context:
+  NovaCart đã có team kỹ thuật 5 người (roster ở trên). Trước khi dev/QA
+  khác chạm vào server, NovaCart yêu cầu mọi truy cập phải theo least-
+  privilege và audit được — không ai ngoài DevOps/SRE có sudo toàn quyền,
+  và người không cần shell thì không được cấp shell.
+Problem:
+  Sau NOVA-001, VPS chỉ có đúng 1 user (bạn) với sudo toàn quyền. Chưa có
+  group nào ngoài mặc định, chưa có account cho dev/QA, chưa có audit trail
+  rõ ràng cho từng người.
+Expected Outcome:
+  - Group `deploy` và `catalog-logs` tồn tại. Có 1 thư mục scaffold (ví dụ
+    `/opt/catalog-service`) thuộc group `deploy`, có setgid bit, để Level 1
+    dùng lại khi thật sự deploy.
+  - `dev1`, `dev2` tồn tại, cả hai thuộc `deploy` + `catalog-logs`, KHÔNG
+    thuộc `wheel`.
+  - `dev2` có thêm 1 file riêng trong `/etc/sudoers.d/`, dùng `Cmnd_Alias`
+    (danh sách lệnh cụ thể để trống/TODO — sẽ chốt ở `02-application-
+    deployment.md` khi quyết định chạy bằng systemd unit hay `docker
+    compose`).
+  - `qa1` tồn tại, KHÔNG có shell thường: chỉ SFTP qua `ChrootDirectory` +
+    `internal-sftp`, và có ACL read-only trên 1 thư mục log scaffold (ví dụ
+    `/var/log/catalog-service`, tạo trống để dùng sau).
+  - Không tạo Linux account cho Product Owner. Quyết định này được ghi lại
+    kèm lý do (không phải "quên tạo").
+  - `sudo -l -U <user>` cho mỗi account ra đúng danh sách quyền như thiết
+    kế — không hơn.
+Constraints:
+  - Không cấp `wheel`/sudo toàn quyền cho ai ngoài bạn.
+  - Docker chưa được cài (thuộc Level 1) → việc thêm `dev2` vào group
+    `docker` và nội dung Cmnd_Alias cụ thể cho restart service BỊ DEFER
+    sang `02-application-deployment.md`. Ticket này chỉ dựng khung (group,
+    file sudoers tồn tại), chưa điền lệnh cụ thể.
+  - Tự tay làm từng bước, không dùng script cấu hình có sẵn.
+  - Không tự khoá bản thân (`you`) ra khỏi quyền sudo trong lúc thao tác.
+Acceptance Criteria:
+  - [ ] `getent group deploy catalog-logs` ra đúng 2 group, đúng member
+        (`dev1`, `dev2`).
+  - [ ] `ls -ld /opt/catalog-service` cho thấy group `deploy` và setgid bit.
+  - [ ] `id dev1` và `id dev2` không có `wheel` trong danh sách group.
+  - [ ] `sudo -l -U dev2` cho thấy đúng file `/etc/sudoers.d/dev2` áp dụng,
+        không phải `ALL=(ALL) ALL`.
+  - [ ] `ssh qa1@<vps-ip>` (shell thường) bị từ chối; `sftp qa1@<vps-ip>`
+        hoạt động và chỉ thấy đúng thư mục đã chroot.
+  - [ ] `getfacl /var/log/catalog-service` cho thấy `qa1` có `r-x`, không có
+        quyền ghi.
+  - [ ] Không có entry nào cho Product Owner trong `/etc/passwd`.
+Technical Notes:
+  - Group tồn tại để cấp/thu quyền cho nhiều người cùng lúc — nếu bạn thấy
+    mình sửa quyền cho từng user riêng lẻ theo cùng một pattern, đó là dấu
+    hiệu nên dùng group thay vì lặp lại thao tác.
+  - `setgid` trên thư mục chỉ ảnh hưởng file/thư mục MỚI tạo sau đó — không
+    tự đổi ownership của file đã có từ trước.
+  - Mỗi file trong `sudoers.d/` áp dụng độc lập, đọc theo thứ tự tên file —
+    thứ tự có thể quan trọng nếu hai rule mâu thuẫn nhau.
+  - SFTP chroot jail của OpenSSH yêu cầu `ChrootDirectory` (và mọi thư mục
+    cha của nó tính đến root) phải thuộc `root:root`, không được group/other
+    writable. Sai bước này, sshd từ chối toàn bộ login của user đó — kể cả
+    SFTP, không chỉ riêng shell.
+  - ACL là lớp bổ sung, không thay thế owner/group/other. Khi debug quyền
+    truy cập, nhớ check bằng `getfacl` — `ls -l` không hiện đủ thông tin ACL.
+Reflection Questions (Feynman):
+  1. Nếu `dev1` nghỉ việc, thu quyền qua group (`gpasswd -d dev1 deploy`)
+     khác gì về bản chất so với việc bạn đã cấp quyền qua ACL riêng cho
+     từng user? Cách nào dễ audit hơn khi team có 10 người, không phải 2?
+  2. `dev2` có quyền từ group `deploy` VÀ một rule sudoers riêng của cá
+     nhân. Nếu bạn xoá `dev2` khỏi group `deploy` nhưng quên xoá file
+     sudoers, điều gì còn tồn tại, điều gì mất đi? Vì sao hai cơ chế này
+     độc lập với nhau?
+  3. `qa1` không có shell thường nhưng vẫn "vào" được server qua SFTP. Về
+     bản chất, "có Linux account" và "có shell access" khác nhau ở đâu? Nếu
+     kẻ tấn công lấy được password của `qa1`, họ làm được gì, không làm
+     được gì?
+  4. Product Owner không có Linux account nào — giả sử một ngày họ cần xem
+     log để debug một vấn đề khẩn cấp, cách nào đúng để cấp truy cập tạm
+     thời mà không tạo account vĩnh viễn cho họ? Vì sao "tạo account tạm rồi
+     xoá" vẫn khác về bản chất so với "không tạo account từ đầu"?
+```
+
 ## Handoff to Next Plan
 
 Completed:
-- (đang chờ người học hoàn thành NOVA-001)
+- (đang chờ người học hoàn thành NOVA-001, sau đó NOVA-002)
 
 Artifacts Created:
 - (chưa có — sẽ ghi lại các thay đổi thật trên VPS sau khi review)
@@ -144,13 +249,19 @@ Configuration Changed:
 Decisions:
 - Repo chính: `rajadilipkolli/spring-boot-microservices-series-v2`,
   bắt đầu bằng `catalog-service` only.
+- Team roster 5 người + RBAC model (group/sudoers/ACL/chroot) — xem "Team
+  Roster" và ticket NOVA-002 ở trên.
 
 Known Issues:
 - (chưa có)
 
 Prerequisites for Next Plan:
-- NOVA-001 hoàn tất và được senior mentor review pass.
+- NOVA-001 và NOVA-002 hoàn tất, được senior mentor review pass.
+- Riêng phần "dev2 vào group `docker`" và Cmnd_Alias cụ thể cho restart
+  service trong NOVA-002 bị defer sang plan kế tiếp — phải hoàn thiện khi
+  Docker được cài và cách chạy `catalog-service` (systemd unit hay `docker
+  compose`) đã được quyết định.
 
 Next Plan:
 - `02-application-deployment.md` — clone repo, chạy `catalog-service` với
-  Docker/Docker Compose trên VPS.
+  Docker/Docker Compose trên VPS; hoàn thiện phần RBAC bị defer từ NOVA-002.
