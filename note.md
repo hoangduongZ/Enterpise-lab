@@ -23,3 +23,22 @@ ssh-keygen -R 103.252.137.184
 ```
 > Thủ công: $HOME/.ssh/known_hosts xoá sign đi
 ---
+
+Về SSH keypair giống như ổ khoá và chìa khoá
+- Gồm public key và private key
+- Public key .pub giống như ổ khoá, gắn lên cửa nhà, ai nhìn thấy cũng không sao
+- Private key không có .pub = chìa khoá - chỉ giữ trên máy muốn vào nhà (VPS)
+- Người tạo ra cái ổ và cái chìa này là ssh-keygen, tạo cả 2 cặp
+- Thằng nào lấy đươc .pub cũng chẳng làm được gì, giống như chụp hình ổ khoá, không mở cửa được nếu không có chìa khoá
+- Cấu trúc ssh-keygen: ssh-keygen -t ed25519 -C "nova-ops"
+    - ssh-keygen là cỗ máy tạo chìa khoá SSH
+    - -t ed25519: type chỉ định công nghệ muốn đúc nên cái chìa khoá này, ed25519 là loại công nghệ
+    - -C "nova-ops": commment gắn nhãn xx lên chìa khoá, để 3 năm sau mở tệp ra xem, không phải vò đầu bứt tai tự hỏi ' cái chìa này hồi xưa mình đúc cho dự án quỉ nào thế nhờ'
+---
+
+Xem các group trên hệ thống
+cat /etc/group
+- Cách đọc format
+vd: sudo:x:27:teo,alice
+    <group-name>:<password-or-no>:<group-id>:<member-names>
+

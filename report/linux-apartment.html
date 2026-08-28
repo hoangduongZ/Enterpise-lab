@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Interactive Linux Apartment — khám phá filesystem và suy luận nơi tìm cấu hình Nginx." />
+  <title>Linux Apartment — Tìm phòng điều khiển Nginx</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Monaco', 'Consolas', 'Liberation Mono', 'monospace'],
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif']
+          },
+          colors: {
+            terminal: '#7CFFB2',
+            ink: '#08120e',
+            panel: '#0d1713',
+            panel2: '#111d18',
+            line: '#22362d'
+          },
+          boxShadow: {
+            glow: '0 0 0 1px rgba(124,255,178,.12), 0 18px 60px rgba(0,0,0,.35)',
+            neon: '0 0 30px rgba(124,255,178,.12)'
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { color-scheme: dark; }
+    html { scroll-behavior: smooth; }
+    body {
+      background:
+        radial-gradient(circle at 18% 8%, rgba(124,255,178,.05), transparent 28%),
+        radial-gradient(circle at 82% 18%, rgba(124,255,178,.03), transparent 24%),
+        #07100c;
+      color: #d9e9df;
+    }
+    * { box-sizing: border-box; }
+    ::selection { background: rgba(124,255,178,.22); color: #fff; }
+    .grid-bg {
+      background-image:
+        linear-gradient(rgba(124,255,178,.025) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(124,255,178,.025) 1px, transparent 1px);
+      background-size: 32px 32px;
+    }
+    .glass { background: rgba(13,23,19,.78); backdrop-filter: blur(14px); border: 1px solid rgba(124,255,178,.10); }
+    .card { box-shadow: 0 14px 42px rgba(0,0,0,.28); }
+    .focus-ring:focus-visible { outline: 2px solid #7CFFB2; outline-offset: 3px; }
+    .transition-soft { transition: all .25s ease; }
+    .room { position: relative; overflow: hidden; }
+    .room::after {
+      content: '';
+      position: absolute;
+      inset: auto -10% -32px -10%;
+      height: 90px;
+      background: radial-gradient(ellipse, rgba(124,255,178,.08), transparent 70%);
+      pointer-events: none;
+    }
+    .room[data-active="true"] { border-color: rgba(124,255,178,.42); box-shadow: 0 0 0 1px rgba(124,255,178,.06), 0 0 32px rgba(124,255,178,.09); transform: translateY(-2px); }
+    .room[data-accent="muted"] { opacity: .92; }
+    .room-hotspot { cursor: pointer; }
+    .wire { stroke: rgba(124,255,178,.24); stroke-width: 2; fill: none; stroke-dasharray: 5 6; }
+    .wire.active { stroke: #7CFFB2; stroke-width: 3; filter: drop-shadow(0 0 5px rgba(124,255,178,.35)); animation: dash 1.2s linear infinite; }
+    @keyframes dash { to { stroke-dashoffset: -30; } }
+    .pulse-dot { animation: pulseDot 1.8s ease-in-out infinite; }
+    @keyframes pulseDot { 0%,100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.18); opacity: 1; } }
+    .path-step { opacity: .35; transform: translateX(-5px); transition: all .4s ease; }
+    .path-step.revealed { opacity: 1; transform: translateX(0); }
+    .connector { width: 1px; height: 16px; background: linear-gradient(to bottom, rgba(124,255,178,.65), transparent); }
+    .log-line { opacity: 0; transform: translateY(4px); animation: logIn .35s ease forwards; }
+    @keyframes logIn { to { opacity: 1; transform: translateY(0); } }
+    .temporary-file { animation: tempLife 3.2s ease-in-out infinite; }
+    @keyframes tempLife { 0%,10% { opacity: 0; transform: translateY(8px) scale(.97); } 20%,72% { opacity: 1; transform: translateY(0) scale(1); } 88%,100% { opacity: 0; transform: translateY(-6px) scale(.98); } }
+    .scan { animation: scan 2.8s ease-in-out infinite; }
+    @keyframes scan { 0%,100% { transform: translateX(-12%); opacity:.1; } 50% { transform: translateX(12%); opacity:.35; } }
+    .celebrate { animation: celebrate .7s ease-out; }
+    @keyframes celebrate { 0% { transform: scale(.96); } 45% { transform: scale(1.03); } 100% { transform: scale(1); } }
+    .shake { animation: shake .42s ease; }
+    @keyframes shake { 20%,70% { transform: translateX(-5px); } 45% { transform: translateX(5px); } }
+    .tooltip { position: relative; }
+    .tooltip:hover .tooltip-box, .tooltip:focus-within .tooltip-box { opacity:1; transform:translateY(0); pointer-events:auto; }
+    .tooltip-box { opacity:0; transform:translateY(4px); pointer-events:none; transition:.2s ease; }
+    .terminal-command:hover { background: rgba(124,255,178,.06); }
+    @media (max-width: 900px) {
+      .desktop-tree { position: sticky; top: .75rem; z-index: 20; }
+    }
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important; scroll-behavior: auto !important; transition-duration: .001ms !important; }
+    }
+  </style>
+</head>
+<body class="min-h-screen grid-bg">
+  <header class="border-b border-emerald-200/10 bg-black/20">
+    <div class="mx-auto max-w-[1500px] px-4 sm:px-6 py-4 flex items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="h-9 w-9 rounded-xl border border-terminal/25 bg-terminal/5 grid place-items-center font-mono text-terminal">/</div>
+        <div>
+          <div class="text-sm font-semibold tracking-wide text-slate-100">LINUX APARTMENT</div>
+          <div class="text-xs text-slate-400">Interactive technical textbook · AlmaLinux mental model</div>
+        </div>
+      </div>
+      <div class="hidden sm:flex items-center gap-2 text-[11px] font-mono text-slate-500">
+        <span class="h-2 w-2 rounded-full bg-terminal pulse-dot"></span>
+        EXPLORE → REASON → VERIFY
+      </div>
+    </div>
+  </header>
+
+  <main class="mx-auto max-w-[1500px] px-4 sm:px-6 py-6 lg:py-8">
+    <div class="grid lg:grid-cols-[250px_minmax(0,1fr)_320px] gap-5 items-start">
+      <!-- Left navigation / filesystem map -->
+      <aside class="desktop-tree glass rounded-2xl p-4 card" aria-label="Filesystem tree">
+        <div class="flex items-center justify-between mb-3">
+          <div>
+            <div class="text-[11px] font-mono uppercase tracking-[.18em] text-terminal/80">Filesystem tree</div>
+            <div class="text-sm font-medium text-slate-100 mt-1">Tòa nhà Linux</div>
+          </div>
+          <span class="text-xs font-mono text-slate-500">/</span>
+        </div>
+        <nav class="space-y-1" id="treeNav"></nav>
+        <div class="mt-5 pt-4 border-t border-white/5 text-xs text-slate-500 leading-5">
+          <span class="text-terminal">Tip:</span> đừng học thuộc. Hãy đoán “căn phòng” dựa vào thứ nó chứa.
+        </div>
+      </aside>
+
+      <!-- Main building -->
+      <section aria-label="Interactive Linux apartment" class="space-y-5">
+        <div class="glass rounded-3xl p-5 sm:p-6 card overflow-hidden">
+          <div class="flex flex-col md:flex-row md:items-end justify-between gap-4">
+            <div>
+              <div class="inline-flex items-center gap-2 text-[11px] font-mono text-terminal/80 uppercase tracking-[.2em]">
+                <span class="h-1.5 w-1.5 rounded-full bg-terminal"></span> Central building
+              </div>
+              <h1 class="mt-2 text-2xl sm:text-3xl font-semibold tracking-tight text-white">Đứng ở đâu trong “chung cư” Linux?</h1>
+              <p class="mt-2 max-w-2xl text-sm leading-6 text-slate-400">Mỗi thư mục là một khu vực có nhiệm vụ riêng. Hãy đi quanh tòa nhà, nhìn thứ nằm bên trong, rồi tự suy ra nơi Nginx sẽ cất “bảng điều khiển”.</p>
+            </div>
+            <div class="rounded-xl border border-terminal/10 bg-black/20 px-3 py-2 text-xs font-mono text-slate-400">
+              current: <span id="currentPathTop" class="text-terminal">/</span>
+            </div>
+          </div>
+
+          <!-- Building visual -->
+          <div class="mt-5 relative rounded-2xl border border-white/7 bg-[#08100c] p-4 sm:p-6 overflow-hidden">
+            <div class="absolute inset-0 pointer-events-none">
+              <div class="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-terminal/20 to-transparent"></div>
+              <div class="scan absolute top-1/4 left-0 right-0 h-px bg-terminal/15"></div>
+            </div>
+
+            <div class="relative max-w-5xl mx-auto">
+              <svg class="absolute inset-0 w-full h-full pointer-events-none z-0" viewBox="0 0 1000 780" preserveAspectRatio="none" aria-hidden="true">
+                <path id="wire-root-etc" class="wire" d="M500 92 C500 135 430 150 330 180"></path>
+                <path id="wire-root-usr" class="wire" d="M500 92 C500 135 630 150 770 180"></path>
+                <path id="wire-etc-nginx" class="wire" d="M330 280 C330 318 335 335 335 350"></path>
+                <path id="wire-nginx-conf" class="wire" d="M335 458 C335 486 335 505 335 532"></path>
+                <path id="wire-var-log" class="wire" d="M520 530 C620 530 692 560 752 590"></path>
+              </svg>
+
+              <div class="relative z-10 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                <!-- ROOT -->
+                <button class="room room-hotspot col-span-full rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/" aria-label="Mở phòng root filesystem">
+                  <div class="flex items-start justify-between gap-4">
+                    <div>
+                      <div class="flex items-center gap-2 font-mono text-terminal"><span class="text-lg">/</span><span class="text-[11px] text-slate-500">ENTRY / START HERE</span></div>
+                      <h2 class="mt-1 text-lg font-semibold text-white">ROOT OF THE FILESYSTEM</h2>
+                      <p class="mt-1 text-sm text-slate-400">Đại sảnh của toàn bộ tòa nhà.</p>
+                    </div>
+                    <span class="rounded-lg border border-terminal/15 bg-terminal/5 px-2 py-1 text-[10px] font-mono text-terminal">click</span>
+                  </div>
+                </button>
+
+                <!-- /etc -->
+                <button class="room room-hotspot rounded-2xl border border-terminal/20 bg-[#0d1b15] p-4 text-left focus-ring transition-soft" data-room="/etc" aria-label="Mở phòng etc control room">
+                  <div class="flex items-center justify-between gap-3">
+                    <div class="flex items-center gap-2">
+                      <span class="grid place-items-center h-8 w-8 rounded-lg bg-terminal/10 text-terminal font-mono">⚙</span>
+                      <div><div class="text-[10px] font-mono text-terminal/70 tracking-wider">/etc</div><h3 class="text-base font-semibold text-white">CONTROL ROOM</h3></div>
+                    </div>
+                    <span class="h-2 w-2 rounded-full bg-terminal"></span>
+                  </div>
+                  <p class="mt-3 text-sm text-slate-300">Configuration lives here.</p>
+                  <div class="mt-3 rounded-lg border border-white/5 bg-black/20 px-3 py-2 font-mono text-xs text-slate-400">/etc/nginx/</div>
+                </button>
+
+                <!-- /usr -->
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/usr" aria-label="Mở phòng usr">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2"><span class="grid place-items-center h-8 w-8 rounded-lg bg-white/5 text-slate-300 font-mono">🧰</span><div><div class="text-[10px] font-mono text-slate-500">/usr</div><h3 class="text-base font-semibold text-white">KHO CÔNG CỤ</h3></div></div>
+                    <span class="text-[10px] font-mono text-slate-500">programs</span>
+                  </div>
+                  <div class="mt-3 grid grid-cols-2 gap-2 text-[11px] font-mono">
+                    <div class="rounded bg-black/20 px-2 py-1.5 text-slate-400">bin</div><div class="rounded bg-black/20 px-2 py-1.5 text-slate-400">sbin</div>
+                    <div class="rounded bg-black/20 px-2 py-1.5 text-slate-400">lib</div><div class="rounded bg-black/20 px-2 py-1.5 text-slate-400">lib64</div>
+                  </div>
+                </button>
+
+                <!-- /var -->
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/var" aria-label="Mở phòng var">
+                  <div class="flex items-center justify-between">
+                    <div class="flex items-center gap-2"><span class="grid place-items-center h-8 w-8 rounded-lg bg-white/5 text-slate-300 font-mono">↗</span><div><div class="text-[10px] font-mono text-slate-500">/var</div><h3 class="text-base font-semibold text-white">DỮ LIỆU THAY ĐỔI</h3></div></div>
+                    <span class="text-[10px] font-mono text-slate-500">live data</span>
+                  </div>
+                  <p class="mt-2 text-sm text-slate-400">Logs, spool, cache và các dữ liệu biến động.</p>
+                  <div class="mt-3 rounded-lg border border-white/5 bg-black/20 px-3 py-2 font-mono text-xs text-slate-400">/var/log/nginx/</div>
+                </button>
+
+                <!-- secondary rooms -->
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/home" aria-label="Mở phòng home">
+                  <div class="text-[10px] font-mono text-slate-500">/home</div><h3 class="mt-1 font-semibold text-white">CĂN HỘ NGƯỜI DÙNG</h3>
+                  <div class="mt-3 space-y-1 font-mono text-[11px] text-slate-400"><div>/home/alice</div><div>/home/bob</div></div>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/root" aria-label="Mở phòng user root">
+                  <div class="text-[10px] font-mono text-slate-500">/root</div><h3 class="mt-1 font-semibold text-white">PHÒNG RIÊNG ADMIN</h3>
+                  <p class="mt-2 text-sm text-slate-400">Nhớ nhé: <span class="font-mono text-terminal">/</span> ≠ <span class="font-mono text-terminal">/root</span>.</p>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/boot" aria-label="Mở phòng boot">
+                  <div class="text-[10px] font-mono text-slate-500">/boot</div><h3 class="mt-1 font-semibold text-white">PHÒNG KHỞI ĐỘNG</h3>
+                  <div class="mt-3 flex items-center gap-2 text-xs text-slate-400"><span class="font-mono">kernel</span><span class="text-slate-600">+</span><span class="font-mono">bootloader</span></div>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/dev" aria-label="Mở phòng dev">
+                  <div class="text-[10px] font-mono text-slate-500">/dev</div><h3 class="mt-1 font-semibold text-white">THIẾT BỊ “GIẢ DẠNG FILE”</h3>
+                  <div class="mt-3 flex gap-2 text-xs"><span class="rounded bg-black/20 px-2 py-1 text-slate-400">⌨</span><span class="rounded bg-black/20 px-2 py-1 text-slate-400">disk</span><span class="rounded bg-black/20 px-2 py-1 text-slate-400">tty</span><span class="rounded bg-black/20 px-2 py-1 text-slate-400">net</span></div>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/proc" aria-label="Mở phòng proc">
+                  <div class="text-[10px] font-mono text-slate-500">/proc</div><h3 class="mt-1 font-semibold text-white">HÌNH CHIẾU KERNEL</h3><p class="mt-2 text-sm text-slate-400">Virtual filesystem · phản ánh process và trạng thái hệ thống.</p>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/sys" aria-label="Mở phòng sys">
+                  <div class="text-[10px] font-mono text-slate-500">/sys</div><h3 class="mt-1 font-semibold text-white">HÌNH CHIẾU THIẾT BỊ</h3><p class="mt-2 text-sm text-slate-400">Virtual filesystem · interface với kernel và device model.</p>
+                </button>
+
+                <button class="room room-hotspot rounded-2xl border border-white/10 bg-panel/90 p-4 text-left focus-ring transition-soft" data-room="/tmp" aria-label="Mở phòng tmp">
+                  <div class="text-[10px] font-mono text-slate-500">/tmp</div><h3 class="mt-1 font-semibold text-white">KHU VỰC TẠM</h3><div class="mt-3 rounded bg-black/20 px-2 py-2 font-mono text-xs text-slate-500"><span class="temporary-file inline-block text-terminal">draft.sock</span> · disposable</div>
+                </button>
+              </div>
+
+              <!-- deeper /etc reveal -->
+              <div id="etcReveal" class="hidden mt-5 rounded-2xl border border-terminal/15 bg-[#0b1812] p-4 sm:p-5" aria-live="polite">
+                <div class="flex flex-col md:flex-row gap-5 items-start">
+                  <div class="flex-1">
+                    <div class="text-[10px] font-mono uppercase tracking-[.2em] text-terminal/70">Breadcrumb</div>
+                    <div class="mt-2 flex flex-wrap items-center gap-1.5 font-mono text-sm">
+                      <span class="path-step rounded-md bg-white/5 px-2 py-1" data-step="0">/</span><span class="text-slate-600">→</span>
+                      <span class="path-step rounded-md bg-white/5 px-2 py-1" data-step="1">etc</span><span class="text-slate-600">→</span>
+                      <span class="path-step rounded-md bg-white/5 px-2 py-1" data-step="2">nginx</span><span class="text-slate-600">→</span>
+                      <span class="path-step rounded-md bg-terminal/10 px-2 py-1 text-terminal" data-step="3">nginx.conf</span>
+                    </div>
+                    <div class="mt-4 grid sm:grid-cols-2 gap-3">
+                      <div class="rounded-xl border border-white/5 bg-black/20 p-3"><div class="text-[10px] font-mono text-slate-500">cabinet</div><div class="mt-1 font-mono text-sm text-white">/etc/nginx/</div><p class="mt-1 text-xs leading-5 text-slate-400">Nơi thường được tìm cho cấu hình Nginx trên AlmaLinux/RHEL theo layout cài đặt thông thường. Không phải mọi installation đều giống hệt nhau.</p></div>
+                      <div class="rounded-xl border border-terminal/10 bg-terminal/5 p-3"><div class="text-[10px] font-mono text-terminal/70">configuration</div><div class="mt-1 font-mono text-sm text-terminal">nginx.conf</div><p class="mt-1 text-xs leading-5 text-slate-400">“Bảng điều khiển”: nơi quyết định server nghe cổng nào và phục vụ request ra sao.</p></div>
+                    </div>
+                  </div>
+                  <button id="whyUsrBtn" class="focus-ring shrink-0 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm text-slate-200 hover:bg-white/10 transition-soft" aria-expanded="false">Why not /usr?</button>
+                </div>
+                <div id="whyUsr" class="hidden mt-4 rounded-xl border border-white/5 bg-black/20 p-4 text-sm text-slate-300">
+                  <strong class="text-white">/usr</strong> chủ yếu là nơi chứa programs, libraries và shared system resources. Bạn đang tìm <em class="text-terminal not-italic">bảng điều khiển</em>, không phải “cỗ máy” — nên suy luận về <span class="font-mono text-terminal">/etc</span> trước.
+                </div>
+
+                <div class="mt-5 rounded-2xl border border-white/5 bg-black/20 p-4">
+                  <div class="flex flex-wrap items-center gap-2 text-xs font-mono text-slate-400">
+                    <span class="text-terminal">NGINX</span><span>→ đọc configuration</span><span>→ mở port</span><span>→ phục vụ HTTP request</span>
+                  </div>
+                  <div class="mt-3 flex items-center gap-3">
+                    <div class="h-2 w-2 rounded-full bg-terminal"></div><div class="h-px flex-1 bg-terminal/15"></div><div class="rounded-lg border border-terminal/15 bg-terminal/5 px-3 py-2 text-xs font-mono text-terminal">server { listen 80; }</div><div class="h-px flex-1 bg-terminal/15"></div><div class="rounded-lg border border-white/5 bg-white/5 px-3 py-2 text-xs text-slate-300">HTTP request</div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Supporting rooms details -->
+              <div id="roomDetail" class="mt-5 hidden rounded-2xl border border-white/7 bg-panel2/95 p-4 sm:p-5" aria-live="polite"></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Challenge -->
+        <section class="glass rounded-3xl p-5 sm:p-6 card" id="challenge">
+          <div class="flex items-center justify-between gap-4">
+            <div>
+              <div class="text-[10px] font-mono uppercase tracking-[.2em] text-terminal/70">Challenge 01</div>
+              <h2 class="mt-2 text-xl sm:text-2xl font-semibold text-white">NGINX đang cần mở cửa. Đi tìm phòng cấu hình.</h2>
+            </div>
+            <div class="hidden sm:block text-xs font-mono text-slate-500">reason first · click later</div>
+          </div>
+          <p class="mt-2 text-sm text-slate-400 max-w-3xl">Không cần nhớ câu trả lời. Hãy tự hỏi: “Mình đang tìm chương trình, dữ liệu thay đổi, vùng tạm thời — hay bảng điều khiển?”</p>
+          <div id="quizGrid" class="mt-5 grid sm:grid-cols-2 gap-3"></div>
+          <div id="quizFeedback" class="mt-4 hidden" aria-live="polite"></div>
+        </section>
+
+        <!-- Mini terminal -->
+        <section class="glass rounded-3xl p-5 sm:p-6 card">
+          <div class="flex items-center justify-between gap-4">
+            <div><div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Supporting evidence</div><h2 class="mt-1 text-lg font-semibold text-white">Mini terminal — nhưng terminal không lái cuộc khám phá</h2></div>
+            <div class="text-xs font-mono text-slate-500">click command</div>
+          </div>
+          <div class="mt-4 rounded-2xl border border-white/7 bg-[#050a08] overflow-hidden">
+            <div class="px-4 py-2 border-b border-white/5 flex items-center justify-between text-[10px] font-mono text-slate-500"><span>shell</span><span>evidence only</span></div>
+            <div id="terminal" class="p-4 font-mono text-xs leading-7"></div>
+          </div>
+          <div class="mt-3 text-xs text-slate-500 flex items-start gap-2"><span class="text-terminal">↳</span><span>Tip: output trên đây là mô phỏng để làm rõ mental model, không phải terminal thật.</span></div>
+        </section>
+
+        <!-- Feynman Test -->
+        <section class="glass rounded-3xl p-5 sm:p-6 card" id="feynman">
+          <div class="text-[10px] font-mono uppercase tracking-[.2em] text-terminal/70">Feynman Test</div>
+          <h2 class="mt-2 text-xl font-semibold text-white">Bây giờ hãy giải thích ngược cho chính mình</h2>
+          <p class="mt-2 text-sm text-slate-400">Nếu <span class="font-mono text-terminal">/etc</span> là nơi chứa configuration, <span class="font-mono text-terminal">/var</span> là nơi chứa dữ liệu thay đổi và <span class="font-mono text-terminal">/usr</span> là nơi chứa chương trình, vậy bạn sẽ tìm <strong class="text-slate-200">access log</strong> của Nginx ở đâu?</p>
+          <div id="feynmanGrid" class="mt-5 grid sm:grid-cols-3 gap-3"></div>
+          <div id="feynmanFeedback" class="mt-4 hidden" aria-live="polite"></div>
+        </section>
+
+        <!-- SELinux detail -->
+        <section class="glass rounded-3xl p-5 sm:p-6 card">
+          <div class="flex flex-col sm:flex-row gap-4 sm:items-center justify-between">
+            <div>
+              <div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Tiny detail worth noticing</div>
+              <h2 class="mt-1 text-lg font-semibold text-white">Một dấu chấm trong permission line</h2>
+            </div>
+            <div class="font-mono text-sm text-slate-300 rounded-xl border border-white/7 bg-black/20 px-4 py-3 inline-flex items-center gap-1">
+              drwxr-xr-x<span class="tooltip inline-flex ml-1"><button class="focus-ring text-terminal underline decoration-dotted decoration-terminal/50" aria-label="Giải thích dấu chấm SELinux">.</button><span class="tooltip-box absolute z-50 mt-7 -ml-24 w-72 rounded-xl border border-white/10 bg-[#0a110d] p-3 text-left text-xs leading-5 text-slate-300 shadow-xl"><strong class="text-white">Dấu “.”:</strong> có thể cho biết file đã có extended security attribute metadata (thường gặp khi có SELinux context). Nó không đơn giản có nghĩa “thư mục đang bị SELinux giám sát”.</span></span>
+            </div>
+          </div>
+        </section>
+      </section>
+
+      <!-- Right explanation panel -->
+      <aside class="lg:sticky lg:top-4 space-y-4" aria-label="Explanation and context">
+        <section class="glass rounded-2xl p-4 card">
+          <div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Observation deck</div>
+          <div id="contextTitle" class="mt-2 text-lg font-semibold text-white">Bạn đang nhìn vào /</div>
+          <div id="contextBody" class="mt-2 text-sm leading-6 text-slate-400">Đây là nơi mọi đường dẫn Linux bắt đầu. Hãy xem nó như sảnh chung của cả tòa nhà.</div>
+          <div class="mt-4 pt-4 border-t border-white/5">
+            <div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Three questions</div>
+            <div class="mt-3 space-y-2" id="threeQuestions">
+              <div class="rounded-xl border border-white/5 bg-black/20 px-3 py-2"><div class="text-[10px] text-slate-500">1 · Bạn đang nhìn gì?</div><div class="text-sm text-slate-200">Một “phòng” trong filesystem.</div></div>
+              <div class="rounded-xl border border-white/5 bg-black/20 px-3 py-2"><div class="text-[10px] text-slate-500">2 · Nó dùng để làm gì?</div><div class="text-sm text-slate-200">Nó tổ chức một loại tài nguyên nhất định.</div></div>
+              <div class="rounded-xl border border-white/5 bg-black/20 px-3 py-2"><div class="text-[10px] text-slate-500">3 · Tại sao Nginx cần nó?</div><div class="text-sm text-slate-200">Nginx chỉ cần nó nếu thứ Nginx đang tìm thuộc loại đó.</div></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="glass rounded-2xl p-4 card">
+          <div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Current path</div>
+          <div id="crumbPanel" class="mt-3 flex flex-wrap items-center gap-1.5 font-mono text-xs"></div>
+          <div class="mt-3 h-px bg-white/5"></div>
+          <div class="mt-3 text-xs text-slate-500">Mục tiêu cuối: <span class="font-mono text-terminal">/etc → nginx → nginx.conf</span></div>
+        </section>
+
+        <section class="glass rounded-2xl p-4 card border-terminal/10">
+          <div class="text-[10px] font-mono uppercase tracking-[.2em] text-terminal/70">Mental model</div>
+          <p class="mt-2 text-sm leading-6 text-slate-300">“Tòa nhà không nói cho bạn đáp án. Nó chỉ cho bạn đủ bằng chứng để tự suy luận.”</p>
+        </section>
+      </aside>
+    </div>
+  </main>
+
+  <footer class="border-t border-white/5 mt-6">
+    <div class="mx-auto max-w-[1500px] px-4 sm:px-6 py-5 text-xs text-slate-500 flex flex-col sm:flex-row justify-between gap-2">
+      <span>Linux Apartment · learning by spatial reasoning</span>
+      <span class="font-mono">/etc ≠ answer key · it is a discovered hypothesis</span>
+    </div>
+  </footer>
+
+  <script>
+    const rooms = {
+      '/': {
+        title: 'Đây là đại sảnh /',
+        body: 'Đây là nơi mọi đường dẫn Linux bắt đầu. Hãy xem / như toàn bộ tòa nhà, không phải một “phòng riêng”.',
+        crumbs: ['/'],
+        questions: ['Filesystem root', 'Điểm bắt đầu của mọi path', 'Nginx cần nó để định vị mọi thứ bên dưới']
+      },
+      '/etc': {
+        title: 'Bạn vừa mở /etc — Control Room',
+        body: 'Đây là khu vực cấu hình. Khi một dịch vụ cần biết “nó nên hoạt động thế nào”, /etc là một nơi rất đáng kiểm tra.',
+        crumbs: ['/', 'etc'],
+        questions: ['Configuration files', 'Điều chỉnh hành vi hệ thống/dịch vụ', 'Nginx cần configuration để biết cách lắng nghe và phục vụ']
+      },
+      '/usr': {
+        title: 'Bạn đang đứng trong /usr — kho công cụ',
+        body: '/usr chủ yếu chứa programs, libraries và shared system resources. Tư duy “cỗ máy” phù hợp hơn “bảng điều khiển”.',
+        crumbs: ['/', 'usr'],
+        questions: ['Programs + libraries', 'Chứa phần mềm và tài nguyên hệ thống dùng chung', 'Nginx có thể cần binary/library ở đây, nhưng config không phải nhiệm vụ chính của khu này']
+      },
+      '/var': {
+        title: 'Bạn đang đứng trong /var — dữ liệu thay đổi',
+        body: '/var là nơi các dữ liệu biến động thường được đặt. Với Nginx, /var/log/nginx/ là ví dụ cực hợp lý cho nơi log có thể xuất hiện.',
+        crumbs: ['/', 'var'],
+        questions: ['Variable data', 'Logs, spool, cache…', 'Nginx cần nơi ghi lại request/error log']
+      },
+      '/home': {
+        title: 'Bạn đang đứng trong /home — căn hộ người dùng',
+        body: 'Đây là không gian riêng thường dành cho user bình thường. Hãy nghĩ “đồ cá nhân của cư dân” thay vì “cấu hình của toàn tòa nhà”.',
+        crumbs: ['/', 'home'],
+        questions: ['User data', 'Cá nhân của từng user', 'Nginx server config không thuộc nhóm này']
+      },
+      '/root': {
+        title: 'Bạn đang đứng trong /root — phòng riêng của user root',
+        body: '/root là home directory của tài khoản root. Nó khác hoàn toàn với / — đại sảnh/filesystem root.',
+        crumbs: ['/', 'root'],
+        questions: ['Root user home', 'Nơi riêng của admin root', 'Không phải nơi mặc định để giữ Nginx configuration']
+      },
+      '/boot': {
+        title: 'Bạn đang đứng trong /boot — phòng khởi động',
+        body: 'Kernel và boot-related files sống ở vùng này. Nó giúp hệ thống thức dậy; nó không phải bảng điều khiển cho Nginx.',
+        crumbs: ['/', 'boot'],
+        questions: ['Boot artifacts', 'Khởi động hệ thống', 'Nginx chưa chạy thì còn chưa cần phòng này']
+      },
+      '/dev': {
+        title: 'Bạn đang đứng trong /dev — thiết bị được biểu diễn như file',
+        body: 'Linux dùng file-like interfaces để truy cập nhiều thiết bị. Đây là minh họa tuyệt vời cho ý tưởng “everything is a file”, nhưng không phải chỗ tìm Nginx config.',
+        crumbs: ['/', 'dev'],
+        questions: ['Device nodes/interfaces', 'Truy cập thiết bị', 'Nginx cần socket/network interface, nhưng không tìm config ở đây']
+      },
+      '/proc': {
+        title: 'Bạn đang nhìn vào /proc — virtual filesystem',
+        body: '/proc không nên được hiểu như một thư mục dữ liệu bình thường trên disk. Nó phản ánh process và trạng thái kernel qua một interface ảo.',
+        crumbs: ['/', 'proc'],
+        questions: ['Kernel/process view', 'Phản ánh trạng thái live', 'Có thể giúp quan sát Nginx, không phải nơi lưu config']
+      },
+      '/sys': {
+        title: 'Bạn đang nhìn vào /sys — virtual filesystem',
+        body: '/sys là interface với kernel/device model. Nó giống cửa sổ kính hơn là tủ hồ sơ trên ổ đĩa.',
+        crumbs: ['/', 'sys'],
+        questions: ['Kernel/device model', 'Phản ánh và điều khiển một số trạng thái', 'Không phải nơi giữ service configuration']
+      },
+      '/tmp': {
+        title: 'Bạn đang đứng trong /tmp — khu vực tạm',
+        body: 'Các chương trình có thể đặt dữ liệu tạm vào đây. Một cấu hình server quan trọng cần tính ổn định, nên /tmp là một suy luận khá tệ.',
+        crumbs: ['/', 'tmp'],
+        questions: ['Temporary data', 'Dữ liệu dùng tạm', 'Nginx config không nên “sống nhờ” khu vực tạm']
+      }
+    };
+
+    const treeItems = ['/', '/etc', '/usr', '/var', '/home', '/root', '/boot', '/dev', '/proc', '/sys', '/tmp'];
+    const nav = document.getElementById('treeNav');
+    const contextTitle = document.getElementById('contextTitle');
+    const contextBody = document.getElementById('contextBody');
+    const crumbPanel = document.getElementById('crumbPanel');
+    const currentPathTop = document.getElementById('currentPathTop');
+    const roomDetail = document.getElementById('roomDetail');
+    const etcReveal = document.getElementById('etcReveal');
+
+    function iconFor(path) {
+      return ({'/':'/', '/etc':'⚙', '/usr':'🧰', '/var':'↗', '/home':'⌂', '/root':'★', '/boot':'△', '/dev':'◌', '/proc':'◈', '/sys':'◇', '/tmp':'~'})[path] || '·';
+    }
+
+    function setContext(path) {
+      const r = rooms[path] || rooms['/'];
+      contextTitle.textContent = r.title;
+      contextBody.textContent = r.body;
+      currentPathTop.textContent = path;
+      crumbPanel.innerHTML = r.crumbs.map((c, i) => {
+        const label = c === '/' ? '/' : c.replace(/^\//,'');
+        return `<span class="rounded-md px-2 py-1 ${i === r.crumbs.length-1 ? 'bg-terminal/10 text-terminal' : 'bg-white/5 text-slate-400'}">${label}</span>${i < r.crumbs.length-1 ? '<span class="text-slate-600">→</span>' : ''}`;
+      }).join('');
+      document.querySelectorAll('.room').forEach(el => el.dataset.active = el.dataset.room === path ? 'true' : 'false');
+      document.querySelectorAll('.tree-link').forEach(el => {
+        el.dataset.active = el.dataset.path === path ? 'true' : 'false';
+        el.classList.toggle('bg-terminal/10', el.dataset.path === path);
+        el.classList.toggle('text-terminal', el.dataset.path === path);
+        el.classList.toggle('text-slate-400', el.dataset.path !== path);
+      });
+      if (path !== '/etc') {
+        roomDetail.classList.remove('hidden');
+        roomDetail.innerHTML = `<div class="text-[10px] font-mono uppercase tracking-[.2em] text-slate-500">Why this room?</div><div class="mt-3 grid md:grid-cols-3 gap-3"><div class="rounded-xl border border-white/5 bg-black/20 p-3"><div class="text-[10px] text-slate-500">Bạn đang nhìn gì?</div><div class="mt-1 text-sm text-slate-200">${r.questions[0]}</div></div><div class="rounded-xl border border-white/5 bg-black/20 p-3"><div class="text-[10px] text-slate-500">Nó dùng để làm gì?</div><div class="mt-1 text-sm text-slate-200">${r.questions[1]}</div></div><div class="rounded-xl border border-white/5 bg-black/20 p-3"><div class="text-[10px] text-slate-500">Tại sao Nginx cần nó?</div><div class="mt-1 text-sm text-slate-200">${r.questions[2]}</div></div></div>`;
+      } else {
+        roomDetail.classList.add('hidden');
+      }
+    }
+
+    function animateEtcPath() {
+      etcReveal.classList.remove('hidden');
+      document.querySelectorAll('#etcReveal .path-step').forEach(el => el.classList.remove('revealed'));
+      [0,1,2,3].forEach((n, i) => setTimeout(() => document.querySelector(`#etcReveal .path-step[data-step="${n}"]`)?.classList.add('revealed'), 180 * i));
+      document.querySelector('#wire-root-etc')?.classList.add('active');
+      document.querySelector('#wire-etc-nginx')?.classList.add('active');
+      document.querySelector('#wire-nginx-conf')?.classList.add('active');
+      setTimeout(() => {
+        document.querySelector('#wire-root-etc')?.classList.remove('active');
+        document.querySelector('#wire-etc-nginx')?.classList.remove('active');
+        document.querySelector('#wire-nginx-conf')?.classList.remove('active');
+      }, 2000);
+    }
+
+    function openRoom(path) {
+      setContext(path);
+      if (path === '/etc') animateEtcPath();
+      const el = document.querySelector(`.room[data-room="${path}"]`);
+      el?.scrollIntoView({behavior: 'smooth', block: 'center'});
+    }
+
+    treeItems.forEach(path => {
+      const a = document.createElement('button');
+      a.className = 'tree-link focus-ring w-full text-left rounded-lg px-2.5 py-2 text-xs font-mono text-slate-400 hover:bg-white/5 transition-soft flex items-center gap-2';
+      a.dataset.path = path;
+      a.dataset.active = 'false';
+      const indent = path === '/' ? '' : path === '/etc' || path === '/usr' || path === '/var' ? 'ml-2' : 'ml-5';
+      a.innerHTML = `<span class="text-terminal/70 ${indent}">${iconFor(path)}</span><span>${path}</span>`;
+      a.addEventListener('click', () => openRoom(path));
+      nav.appendChild(a);
+    });
+
+    document.querySelectorAll('.room-hotspot').forEach(btn => btn.addEventListener('click', () => openRoom(btn.dataset.room)));
+    document.querySelector('.room[data-room="/"]').dataset.active = 'true';
+    setContext('/');
+
+    document.getElementById('whyUsrBtn').addEventListener('click', () => {
+      const panel = document.getElementById('whyUsr');
+      const hidden = panel.classList.toggle('hidden');
+      document.getElementById('whyUsrBtn').setAttribute('aria-expanded', String(!hidden));
+    });
+
+    const quizOptions = [
+      {path:'/usr', title:'/usr', hint:'“Khu này thiên về programs và libraries. Bạn đang tìm cái để chạy hay cái điều khiển cách chạy?”'},
+      {path:'/var', title:'/var', hint:'“Bạn vừa tìm thấy khu dữ liệu thay đổi và logs. Nhưng config nên sống ở khu vực ổn định nào?”'},
+      {path:'/etc', title:'/etc', correct:true},
+      {path:'/tmp', title:'/tmp', hint:'“Đây là dữ liệu tạm. Một cấu hình server quan trọng có nên đặt cược vào chỗ tạm thời không?”'}
+    ];
+
+    const quizGrid = document.getElementById('quizGrid');
+    const quizFeedback = document.getElementById('quizFeedback');
+    quizOptions.forEach((o) => {
+      const b = document.createElement('button');
+      b.className = 'focus-ring text-left rounded-2xl border border-white/8 bg-black/15 hover:bg-white/5 hover:border-terminal/20 p-4 transition-soft';
+      b.innerHTML = `<div class="font-mono text-terminal text-lg">${o.title}</div><div class="mt-1 text-sm text-slate-400">${o.path === '/etc' ? 'control room' : rooms[o.path].title.replace(/^Bạn đang đứng trong |^Bạn đang nhìn vào /,'')}</div>`;
+      b.addEventListener('click', () => {
+        if (o.correct) {
+          quizFeedback.className = 'mt-4 rounded-2xl border border-terminal/20 bg-terminal/5 p-4 celebrate';
+          quizFeedback.innerHTML = `<div class="flex items-start gap-3"><div class="h-8 w-8 rounded-full bg-terminal/10 text-terminal grid place-items-center">✓</div><div><div class="font-semibold text-white">Bạn đã tìm thấy phòng điều khiển.</div><div class="mt-1 text-sm text-slate-300">Bây giờ hãy mở ${'<span class="font-mono text-terminal">/etc</span>'} để nhìn đường dẫn ${'<span class="font-mono text-terminal">/etc → nginx → nginx.conf</span>'} được dựng lên trước mắt.</div></div></div>`;
+          openRoom('/etc');
+          quizFeedback.scrollIntoView({behavior:'smooth', block:'center'});
+        } else {
+          quizFeedback.className = 'mt-4 rounded-2xl border border-amber-200/10 bg-amber-100/5 p-4 shake';
+          quizFeedback.innerHTML = `<div class="text-sm text-slate-200"><span class="font-semibold">Chưa phải.</span> ${o.hint}</div>`;
+          openRoom(o.path);
+          quizFeedback.scrollIntoView({behavior:'smooth', block:'center'});
+        }
+      });
+      quizGrid.appendChild(b);
+    });
+
+    const feynmanOptions = [
+      {title:'/etc/nginx/', correct:false, hint:'Đó là khu cấu hình. Access log là dữ liệu phát sinh khi request chạy.'},
+      {title:'/var/log/nginx/', correct:true},
+      {title:'/usr/bin/', correct:false, hint:'Đây gần với “cỗ máy/chương trình” hơn là nơi chứa dữ liệu log thay đổi.'}
+    ];
+    const fGrid = document.getElementById('feynmanGrid');
+    const fFeedback = document.getElementById('feynmanFeedback');
+    feynmanOptions.forEach(o => {
+      const b = document.createElement('button');
+      b.className = 'focus-ring text-left rounded-2xl border border-white/8 bg-black/15 hover:bg-white/5 p-4 transition-soft';
+      b.innerHTML = `<div class="font-mono text-sm text-terminal">${o.title}</div><div class="mt-1 text-xs text-slate-500">hãy lý luận từ loại dữ liệu</div>`;
+      b.addEventListener('click', () => {
+        if (o.correct) {
+          fFeedback.className = 'mt-4 rounded-2xl border border-terminal/20 bg-terminal/5 p-4 celebrate';
+          fFeedback.innerHTML = `<div class="font-semibold text-white">Đúng — reasoning đã khớp.</div><div class="mt-1 text-sm text-slate-300">Access log là dữ liệu phát sinh theo request, nên ta đi từ <span class="font-mono text-terminal">/var</span> → <span class="font-mono text-terminal">/log</span> → <span class="font-mono text-terminal">nginx</span>. </div>`;
+          openRoom('/var');
+        } else {
+          fFeedback.className = 'mt-4 rounded-2xl border border-amber-200/10 bg-amber-100/5 p-4 shake';
+          fFeedback.innerHTML = `<div class="text-sm text-slate-300"><span class="font-semibold text-white">Thử phân loại lại.</span> ${o.hint}</div>`;
+        }
+      });
+      fGrid.appendChild(b);
+    });
+
+    // Terminal supporting evidence
+    const terminal = document.getElementById('terminal');
+    const terminalLines = [
+      {cmd:'$ ls -l /', path:'/', out:'drwxr-xr-x.   …  etc   home   root   usr   var   tmp'},
+      {cmd:'$ cd /etc', path:'/etc', out:'→ moved into the control room'},
+      {cmd:'$ ls nginx', path:'/etc', out:'nginx.conf  conf.d/  default.d/'},
+      {cmd:'$ cat nginx.conf', path:'/etc', out:'# main configuration … server { listen 80; … }'}
+    ];
+    terminal.innerHTML = terminalLines.map((l,i) => `<button class="terminal-command focus-ring w-full text-left rounded-md px-2 py-0.5 transition-soft" data-terminal-path="${l.path}"><div><span class="text-terminal">${l.cmd}</span></div><div class="pl-4 text-slate-500">${l.out}</div></button>`).join('');
+    document.querySelectorAll('.terminal-command').forEach(b => b.addEventListener('click', () => openRoom(b.dataset.terminalPath)));
+  </script>
+</body>
+</html>
