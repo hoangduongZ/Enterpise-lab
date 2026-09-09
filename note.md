@@ -45,3 +45,7 @@ vd: sudo:x:27:teo,alice
 ---
 
 Tương lai thực hiện 1 lab quản lí hành vi bất thường của các user
+Grafana dùng để track và tạo biểu đồ
+
+---
+

@@ -200,7 +200,7 @@ chown -R nova-ops:nova-ops /home/nova-ops/.ssh
 sshd có chấp nhận login bằng key đó không? Vì sao permission lại ảnh hưởng
 đến việc này (đây không phải là bảo mật do "khó đọc", mà do chính sshd chủ
 động kiểm tra permission và từ chối nếu quá lỏng).
-- .ssh là 700 vì chỉ muốn root có quyền với thư mục này, các thằng khác không có quyền
+- .ssh là 700 vì chỉ muốn user sở hữu hiện tại có quyền với thư mục này
 - authorized_keys là 600 vì co scope file này chỉ có quyền đọc và ghi không có thực thi script nào cả
 ---
 
@@ -335,10 +335,12 @@ ssh nova-ops@<vps-ip>          # phải vào được, không hỏi password
 ssh root@<vps-ip>              # phải bị từ chối
 ssh -o PubkeyAuthentication=no nova-ops@<vps-ip>   # ép dùng password, phải bị từ chối
 ```
--> go here
+
 🛑 Giải thích: vì sao phải mở terminal MỚI để test thay vì dùng lại
 terminal đã login sẵn từ Bước 4? Nếu bước này fail, 2 terminal cũ (đang mở
 sẵn) giúp ích gì cho bạn lúc đó?
+> Trả lời: mở terminal cũ sẽ sử dụng session mới, session cũ chưa được áp dụng các cấu hình này, lúc này test login bằng key file
+Nếu bước 4 fail, terminal cũ sẽ giúp cấu hình lại được, nếu đóng hết kiểu để quên chìa khóa trong nhà và khóa cửa mình bên ngoài
 
 **Chỉ đóng 2 terminal cũ sau khi bước này pass hoàn toàn.**
 
@@ -352,7 +354,25 @@ thứ tự sai ở bước này có thể tự khoá bạn ra ngoài ngay lập 
 ```bash
 systemctl status firewalld --no-pager
 firewall-cmd --get-active-zones
+[nova-ops@hoangdv ~]$ firewall-cmd --get-active-zones
+public
+  interfaces: eth0
 firewall-cmd --list-all
+[sudo] password for nova-ops:
+public (active)
+  target: default
+  icmp-block-inversion: no
+  interfaces: eth0
+  sources:
+  services: cockpit dhcpv6-client ssh
+  ports:
+  protocols:
+  forward: no
+  masquerade: no
+  forward-ports:
+  source-ports:
+  icmp-blocks:
+  rich rules:
 ```
 
 🛑 Giải thích: output của `firewall-cmd --list-all` cho bạn biết `ssh` (dịch
@@ -378,7 +398,7 @@ systemctl enable --now firewalld
 🛑 Giải thích: khác biệt giữa `firewall-cmd --add-service=ssh` (không có
 `--permanent`) và có `--permanent` là gì? Vì sao ví dụ trên dùng
 `--permanent` rồi `--reload` thay vì chỉ chạy runtime?
-> Đoán là cấp phép gì đó và reload để áp dụng
+> Đoán là cấp phép vào giấy tờ gốc gì đó và reload để áp dụng
 
 #### 🔍 AI Review
 
@@ -419,10 +439,10 @@ ssh nova-ops@<vps-ip> "sudo whoami && sudo firewall-cmd --state && sudo firewall
 ```
 
 Đối chiếu với checklist gốc trong `01-foundation.md`:
-- [ ] SSH key login cho `nova-ops` không hỏi password.
-- [ ] `ssh root@<vps-ip>` bị từ chối.
-- [ ] `sudo` chạy được, hỏi password của `nova-ops`.
-- [ ] `firewall-cmd --list-all` chỉ hiện đúng service/port cần thiết.
+- [x] SSH key login cho `nova-ops` không hỏi password.
+- [x] `ssh root@<vps-ip>` bị từ chối.
+- [x] `sudo` chạy được, hỏi password của `nova-ops`.
+- [x] `firewall-cmd --list-all` chỉ hiện đúng service/port cần thiết.
 
 ---
 

@@ -1,6 +1,6 @@
 Chủ nhà làm sao để kiểm soát hành động của người dùng khác trong hệ thống ?
 1. .bash_history
-Kiểm soát qua tệp .bash_history trong thư mục home/{user}/.bash_history của họ
+Kiểm soát qua tệp .bash_history trong thư mục home {user}/.bash_history của họ
 -> Nhược điểm: Nếu ngừoi dùng am hiểu về linux có thể crud nó được
 Output minh hoạ:
 ```

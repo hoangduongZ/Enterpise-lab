@@ -107,11 +107,11 @@ Constraints:
     chưa xác nhận cấu hình mới hoạt động).
   - Không dùng script tự động có sẵn — tự tay thực hiện để hiểu từng bước.
 Acceptance Criteria:
-  - [ ] `ssh <user>@<vps-ip>` bằng SSH key thành công, không hỏi password.
-  - [ ] `ssh root@<vps-ip>` (hoặc bất kỳ hình thức password login nào) bị
+  - [x] `ssh <user>@<vps-ip>` bằng SSH key thành công, không hỏi password.
+  - [x] `ssh root@<vps-ip>` (hoặc bất kỳ hình thức password login nào) bị
         từ chối.
-  - [ ] User vận hành chạy được `sudo` sau khi nhập password của chính nó.
-  - [ ] Firewall đang bật, `<firewall tool> status` cho thấy chỉ các cổng
+  - [x] User vận hành chạy được `sudo` sau khi nhập password của chính nó.
+  - [x] Firewall đang bật, `<firewall tool> status` cho thấy chỉ các cổng
         cần thiết được mở.
 Technical Notes:
   - Nếu tự khóa mình ra ngoài, hầu hết nhà cung cấp VPS có "recovery
@@ -119,16 +119,139 @@ Technical Notes:
 Reflection Questions (Feynman):
   1. Private key rơi vào tay người khác nhưng không có passphrase — họ
      login được không? Vì sao? Passphrase bảo vệ cái gì, không bảo vệ cái gì?
+> Private key rơi vào tay người khác nhưng họ không có passphrase thì họ không login được, vì passphrase dùng để bảo vệ private key, phải nhập đúng thì mới được login, không bảo vệ cái gì thì tao đéo biết
+```
+
+#### 🔍 AI Review
+
+| Tiêu chí | Đánh giá |
+|---|---|
+| **Độ đơn giản** | ⭐⭐⭐☆☆ |
+| **Ví dụ minh hoạ** | ⭐☆☆☆☆ — chưa có ví dụ |
+| **Độ chính xác** | ⭐☆☆☆☆ — hiểu ngược tình huống đề bài đặt ra |
+| **Tránh thuật ngữ rỗng** | ⭐⭐⭐⭐☆ — thành thật "đéo biết" thay vì bịa |
+
+**Nhận xét:**
+- ⚠️ Đọc lại đề: tình huống là **private key KHÔNG CÓ passphrase** (key trần, không mã hoá) — không phải "attacker không biết passphrase của một key có passphrase". Câu trả lời đang xử lý đúng tình huống ngược lại với đề bài.
+- ⚠️ Vì key không hề được đặt passphrase, nên kẻ lấy được file **login được ngay lập tức**, không hề bị chặn gì cả — kết luận đúng phải ngược lại hoàn toàn với câu trả lời hiện tại ("không login được").
+- ⚠️ Chưa trả lời phần 2 của câu hỏi (passphrase bảo vệ cái gì / không bảo vệ cái gì) — nhưng thừa nhận thẳng "không biết" vẫn tốt hơn đoán bừa.
+
+**💡 Câu trả lời mẫu theo Feynman:**
+> Coi private key như **chìa khoá nhà**, và passphrase như **một cái két sắt bọc quanh chìa khoá** khi nó không nằm trên tay bạn (tức là lúc nó nằm im dưới dạng file trên ổ cứng).
+>
+> - Key **không có passphrase** = chìa khoá để trần, không bọc két. Ai lấy được file đó là **cầm chìa khoá thật ngay**, login được luôn, không cần biết thêm gì.
+> - Key **có passphrase** = file chìa khoá bị mã hoá, giống bọc trong két. Lấy được file vẫn chỉ cầm một cục sắt vô dụng — phải biết passphrase để "mở két" lấy chìa ra dùng.
+>
+> **Passphrase bảo vệ:** chỉ bảo vệ **file private key đang nằm im trên đĩa** — chống lại việc file bị đánh cắp (USB, backup rò rỉ, laptop bị hack).
+>
+> **Passphrase KHÔNG bảo vệ:**
+> - Không bảo vệ khi key **đã giải mã và đang dùng** — ví dụ `ssh-agent` đã load key vào RAM rồi thì ai chiếm được session đó dùng key thoải mái, không cần gõ lại passphrase.
+> - **Server hoàn toàn không biết** private key của bạn có passphrase hay không — sshd chỉ kiểm tra chữ ký hợp lệ khớp với public key nó có, không quan tâm phía client bảo vệ private key kiểu gì. Đây là chuyện thuần phía client/máy của bạn.
+> - Không chống được keylogger/malware trên máy bạn ghi lại passphrase lúc gõ.
+
+```text
   2. User thường vẫn sudo lên root được — vậy tắt "root login qua SSH" thực
      sự ngăn được điều gì? Bản chất khác nhau giữa "là root" và "login
      bằng tài khoản root" là gì?
+> chắc là ngăn không bị tấn công trực tiếp vào tài khoản root, tôi không rõ
+```
+
+#### 🔍 AI Review
+
+| Tiêu chí | Đánh giá |
+|---|---|
+| **Độ đơn giản** | ⭐⭐⭐☆☆ |
+| **Ví dụ minh hoạ** | ☆☆☆☆☆ — chưa có ví dụ |
+| **Độ chính xác** | ⭐⭐☆☆☆ — đúng một phần, chưa chạm vào ý chính |
+| **Tránh thuật ngữ rỗng** | ⭐⭐⭐⭐☆ — thành thật "tôi không rõ" thay vì bịa |
+
+**Nhận xét:**
+- ✅ Đúng một mảnh: root là tài khoản bị brute-force nhiều nhất (username cố định, ai cũng biết), nên chặn login trực tiếp loại bỏ được kiểu tấn công đó.
+- ⚠️ Chưa trả lời đúng trọng tâm câu hỏi: đề bài nhấn mạnh "user thường **vẫn** sudo lên root được" — nghĩa là việc **trở thành root vẫn xảy ra bình thường**, cái bị chặn không phải "quyền root" mà là **con đường vào root**. Câu trả lời chưa nói rõ: chặn được gì cụ thể khi quyền root vẫn còn nguyên đó.
+- ⚠️ Chưa trả lời phần 2 của câu hỏi: khác biệt bản chất giữa "là root" (đang có quyền root) và "login bằng tài khoản root" (đăng nhập trực tiếp bằng chính account root) — đây mới là phần lõi của câu hỏi, và câu trả lời bỏ trống hoàn toàn.
+
+**💡 Câu trả lời mẫu theo Feynman:**
+> Hình dung tài khoản `root` như **một chiếc chìa khoá vạn năng dùng chung**, không khắc tên ai lên đó. Còn tài khoản cá nhân (`nova-ops`) + `sudo` giống như **mỗi người có chìa khoá riêng khắc tên mình**, và mỗi lần muốn dùng phòng VIP (quyền root) phải quẹt chìa riêng đó qua máy quét trước — máy quét ghi lại "ai vừa quẹt, lúc mấy giờ".
+>
+> **Tắt root login qua SSH ngăn được gì, dù user vẫn sudo lên root được?**
+> Nó không ngăn việc *có quyền root* — quyền đó vẫn còn nguyên qua `sudo`. Cái nó ngăn là **con đường đi thẳng vào root mà không qua ai cả**:
+> - Trước khi tắt: attacker chỉ cần đoán đúng **1 thứ duy nhất** — mật khẩu của `root` (username đã biết sẵn, giống nhau trên mọi Linux server). Đoán ra là vào thẳng, không ai biết là ai.
+> - Sau khi tắt: attacker phải đoán ra **2 thứ** — username hợp lệ của một người cụ thể (không phải `root`, thường không công khai) VÀ mật khẩu/key của chính người đó. Khó hơn hẳn, và nếu vào được thì log vẫn ghi rõ **"nova-ops" vừa login**, không phải một cái tên chung chung "root".
+>
+> **"Là root" khác "login bằng root" ở đâu?**
+> - **"Là root"** (qua `sudo`) = có một người **danh tính rõ ràng** (`nova-ops`) tạm thời mượn quyền root để chạy 1 lệnh, có log ghi "nova-ops đã sudo lúc X, chạy lệnh Y".
+> - **"Login bằng root"** = không còn khái niệm "ai" nữa — mọi hành động từ lúc đó chỉ được ghi nhận là "root làm", dù có 5 người cùng biết mật khẩu root và thay nhau dùng, log cũng không phân biệt được là ai trong 5 người đó.
+>
+> Nói ngắn gọn: tắt root login không bớt quyền lực của root đi chút nào — nó chỉ **buộc mọi người phải đi qua cửa có tên, có camera**, thay vì có một cửa sau không ai biết ai ra vào.
+
+```text
   3. Nếu bạn bật firewalld trước khi chắc chắn service ssh nằm trong zone
      đang active, chuyện gì sẽ xảy ra ngay lập tức? Tại sao thứ tự thao tác
      ở bước này quan trọng hơn bản thân câu lệnh?
+> Nếu bật firewalld mà ssh không nằm trong phạm vi zone được active, sẽ bị nhốt ở bên ngoài, tức không được sử dụng dịch vụ ssh từ bên ngoài và phải dùng tới biện phát cuối cùng vào terminal của nhà bán VPS.
+Và thứ tự quan trọng vì tránh việc bị mất quyền kiểm soát
+```
+
+#### 🔍 AI Review
+
+| Tiêu chí | Đánh giá |
+|---|---|
+| **Độ đơn giản** | ⭐⭐⭐⭐☆ |
+| **Ví dụ minh hoạ** | ⭐⭐☆☆☆ — chưa có ví dụ/tình huống cụ thể |
+| **Độ chính xác** | ⭐⭐⭐☆☆ — đúng hậu quả, hơi phóng đại cơ chế "bị nhốt ngay lập tức" |
+| **Tránh thuật ngữ rỗng** | ⭐⭐⭐⭐☆ — ngôn ngữ tự nhiên, dễ hiểu |
+
+**Nhận xét:**
+- ✅ Đúng hậu quả cuối cùng: mất khả năng SSH từ ngoài vào, phải cầu cứu VNC/console của nhà cung cấp — đây là đáp án đúng phần "chuyện gì xảy ra".
+- ⚠️ "Bị nhốt ở bên ngoài **ngay lập tức**" hơi phóng đại cơ chế. Giống bài học ở Bước 5 (`sshd restart`): firewalld có luật ngầm cho phép kết nối **đã thiết lập sẵn (ESTABLISHED)** tiếp tục chạy. Nên phiên SSH **hiện tại** (session root/nova-ops đang mở) thường **không bị rớt ngay** — cái bị chặn là **kết nối MỚI** từ bây giờ trở đi. Đó là lý do guide luôn dặn "giữ nguyên terminal cũ, mở terminal MỚI để test" — terminal cũ chính là đường cứu hộ, y hệat logic ở Bước 5.
+- ⚠️ Phần 2 ("vì sao thứ tự quan trọng hơn bản thân câu lệnh") trả lời đúng hướng nhưng hơi chung chung ("tránh mất quyền kiểm soát") — chưa nói rõ **cơ chế** vì sao thứ tự lại là biến số quyết định, trong khi câu lệnh (`firewall-cmd`, `systemctl enable --now firewalld`) hoàn toàn giống nhau ở cả 2 thứ tự.
+
+**💡 Câu trả lời mẫu theo Feynman:**
+> Hình dung bạn đang đứng **trong nhà**, cửa chính đang mở, và bạn sắp lắp một hệ thống khoá cửa tự động (firewalld) chỉ cho phép người có tên trong danh sách được vào.
+>
+> **Chuyện gì xảy ra nếu bật khoá trước khi thêm tên "ssh" vào danh sách?**
+> - Danh sách khách được duyệt (zone active) sẽ **không có "ssh"** trong đó.
+> - Từ giờ, **ai gõ cửa mới** (kết nối SSH mới) đều bị khoá từ chối thẳng.
+> - Nhưng bạn **đang đứng sẵn trong nhà** (phiên SSH hiện tại đã "được thiết lập" từ trước) — thường **không bị đuổi ra ngay**, vì hệ thống khoá có luật ngầm "ai đã vào rồi thì cứ để yên" (ESTABLISHED connections). Cái nguy hiểm là: nếu phiên đó rớt (mất mạng, đóng nhầm terminal) → bạn **không còn cách nào gõ cửa lại được nữa** từ bên ngoài, phải gọi nhà cung cấp VPS mở console khẩn cấp.
+>
+> **Vì sao THỨ TỰ quan trọng hơn bản thân câu lệnh?**
+> Vì câu lệnh y hệt nhau (`firewall-cmd --add-service=ssh`, `systemctl enable --now firewalld`) — chạy **trước khi verify** hay **sau khi verify** đều dùng đúng lệnh đó, không lệnh nào "sai cú pháp" cả. Cái khác nhau là **thời điểm bạn phát hiện vấn đề**:
+> - Verify trước, bật sau → nếu thiếu "ssh", bạn thấy ngay lúc còn an toàn, sửa xong mới bật khoá — không có rủi ro nào.
+> - Bật trước, verify sau → bạn chỉ biết thiếu "ssh" **sau khi** khoá đã hoạt động — lúc đó lối vào start đã đóng, muốn sửa cũng không SSH vào lại được nữa (trừ khi may mắn phiên cũ chưa rớt).
+>
+> Nói cách khác: rủi ro không nằm trong câu lệnh, mà nằm trong việc bạn có **cơ hội sửa sai trước khi khoá cửa lại** hay không.
+
+```text
   4. SELinux và firewalld giải quyết hai loại rủi ro khác nhau. Nếu phải
      giải thích cho một dev không rành ops, bạn sẽ nói firewalld chặn gì,
      SELinux chặn gì, bằng ví dụ cụ thể?
+> SELinux là vệ sĩ bảo vệ những folder mặc định của hệ thống, cái nó bảo vệ là ... nhằm ...., tức là người ta đã vào được trong hệ thống rồi nhưng không tương tác được những vùng bị bảo vệ
+Firewalld là tường lửa, chặn truy cập từ ngoài vào, tức là nếu bị chặn bằng 1 phương thức nào đó, thì người ngoài không thể vào được nhà
 ```
+
+#### 🔍 AI Review
+
+| Tiêu chí | Đánh giá |
+|---|---|
+| **Độ đơn giản** | ⭐⭐⭐☆☆ — phần firewalld ổn, phần SELinux bỏ dở bằng "..." |
+| **Ví dụ minh hoạ** | ☆☆☆☆☆ — câu hỏi yêu cầu ví dụ cụ thể nhưng chưa có ví dụ nào |
+| **Độ chính xác** | ⭐⭐⭐☆☆ — firewalld đúng, SELinux đúng hướng nhưng chưa đủ |
+| **Tránh thuật ngữ rỗng** | ⭐⭐☆☆☆ — "vệ sĩ bảo vệ folder mặc định", "vùng bị bảo vệ" là mô tả chung chung, chưa nói rõ nó bảo vệ theo cơ chế nào |
+
+**Nhận xét:**
+- ✅ Firewalld: đúng — chặn/kiểm soát kết nối **từ ngoài mạng đi vào**, đúng bản chất "ai được phép gõ cửa nhà".
+- ✅ Ý "người ta đã vào được trong hệ thống rồi nhưng không tương tác được những vùng bị bảo vệ" — **đúng hướng**, đây chính là điểm khác biệt cốt lõi: SELinux xử lý rủi ro xảy ra **sau khi** đã có ai/cái gì đó chạy được bên trong máy, khác hẳn firewalld (chặn từ ngoài).
+- ⚠️ Câu trả lời SELinux bị bỏ dở ("cái nó bảo vệ là ... nhằm ....") — chưa nói được **cơ chế**: SELinux không chỉ bảo vệ "folder mặc định", mà gán **nhãn (label/context)** cho mọi file, port, tiến trình, và chỉ cho phép tương tác nếu policy khớp nhãn — kể cả khi quyền Unix thông thường (`chmod`/`chown`) đã cho phép.
+- ⚠️ Thiếu hoàn toàn ví dụ cụ thể mà câu hỏi yêu cầu — đây là phần quan trọng nhất để chứng minh đã hiểu bản chất, không chỉ nhớ định nghĩa.
+
+**💡 Câu trả lời mẫu theo Feynman:**
+> Hình dung một **toà chung cư**:
+> - **Firewalld** = bảo vệ đứng ở **cổng khu chung cư**. Nó quyết định ai được phép đi vào khuôn viên toà nhà từ ngoài đường — chặn đúng port/dịch vụ nào được mở (ví dụ chỉ mở cổng cho "khách đi thang máy lên căn hộ", tức port 22/80/443), còn lại đóng hết. Nếu bạn không qua được cổng này, bạn **không bao giờ chạm được vào toà nhà**.
+> - **SELinux** = **nội quy riêng của từng căn hộ**, áp dụng cho người **đã vào được bên trong toà nhà rồi**. Dù bảo vệ cổng đã cho bạn vào (firewalld pass), nội quy vẫn quy định: "anh là nhân viên phục vụ tầng 3 (tiến trình web server), anh chỉ được mở đúng các phòng dán nhãn 'khu vực tầng 3' (`/var/www` với label `httpd_sys_content_t`), dù chìa khoá vạn năng của anh (quyền Unix, chủ sở hữu file) có mở được cả phòng tầng 5 (`/home/nova-ops`) đi nữa — nội quy vẫn từ chối, vì phòng đó không nằm trong nhãn cho phép của anh."
+>
+> **Ví dụ cụ thể:** hacker khai thác lỗ hổng web app, chiếm được tiến trình `httpd` (đã "vào nhà" hợp lệ qua port 80 mà firewalld cho phép). Hacker cố đọc `/etc/shadow` hoặc ghi file lạ vào `/home/nova-ops`. Firewalld **không giúp được gì** ở đây — kết nối đã vào từ trước rồi, không phải chuyện network nữa. Nhưng SELinux thấy: tiến trình đang chạy trong domain `httpd_t` cố chạm vào resource có type `shadow_t`/`user_home_t` — **không nằm trong policy cho phép** → **chặn**, dù user chạy `httpd` về mặt Unix có thể có quyền đọc file đó.
+>
+> Tóm gọn: **firewalld** quyết định ai được **vào nhà**; **SELinux** quyết định, khi đã vào nhà rồi, mỗi "vai trò" được phép **chạm vào cái gì** — hai lớp phòng thủ độc lập, không thay thế nhau.
 
 ## Team Roster (NovaCart Engineering)
 
