@@ -12,3 +12,5 @@ sudo systemctl restart nginx
 ```
 2. /var/log/audit
 Đây là dữ liệu do kernel của hệ điều hành ghi lại, user không thể chạm tới
+
+---

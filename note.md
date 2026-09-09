@@ -42,3 +42,6 @@ cat /etc/group
 vd: sudo:x:27:teo,alice
     <group-name>:<password-or-no>:<group-id>:<member-names>
 
+---
+
+Tương lai thực hiện 1 lab quản lí hành vi bất thường của các user

@@ -378,6 +378,35 @@ systemctl enable --now firewalld
 🛑 Giải thích: khác biệt giữa `firewall-cmd --add-service=ssh` (không có
 `--permanent`) và có `--permanent` là gì? Vì sao ví dụ trên dùng
 `--permanent` rồi `--reload` thay vì chỉ chạy runtime?
+> Đoán là cấp phép gì đó và reload để áp dụng
+
+#### 🔍 AI Review
+
+| Tiêu chí | Đánh giá |
+|---|---|
+| **Độ đơn giản** | ⭐⭐☆☆☆ — Quá ngắn, chỉ đoán chung chung |
+| **Ví dụ minh hoạ** | ⭐☆☆☆☆ — Không có ví dụ |
+| **Độ chính xác** | ⭐⭐☆☆☆ — "Reload để áp dụng" đúng hướng, nhưng thiếu cả cơ chế 2 tầng runtime/permanent |
+| **Tránh thuật ngữ rỗng** | ⭐⭐☆☆☆ — "cấp phép gì đó" là thuật ngữ rỗng điển hình, chưa giải nghĩa được `--permanent` thực sự làm gì |
+
+**Nhận xét:**
+- ✅ Đúng phần nào: `--reload` đúng là bước "áp dụng"
+- ⚠️ Chưa thấy `firewalld` có **2 tầng cấu hình tách biệt**: *runtime* (đang chạy trong bộ nhớ, mất khi reload/restart/reboot) và *permanent* (ghi trên đĩa, không tự có hiệu lực ngay)
+- ⚠️ Chưa giải thích được vì sao cần **cả 2 lệnh**: `--permanent` chỉ ghi vào file cấu hình, không đụng gì tới rule đang chạy; `--reload` mới là lệnh khiến firewalld đọc lại file đó và thay thế runtime hiện tại
+- ⚠️ Chưa nêu được rủi ro nếu chỉ chạy runtime (không `--permanent`): SSH sẽ mất quyền truy cập ngay khi firewalld reload lần sau hoặc server reboot — đúng như cảnh báo đầu bước "thứ tự sai ở bước này có thể tự khoá bạn ra ngoài"
+
+**💡 Câu trả lời mẫu theo Feynman:**
+
+> Hình dung `firewalld` có **hai cuốn sổ**:
+> - **Sổ nháp (runtime)**: luật đang áp dụng *ngay bây giờ*, ngoài cửa. Ai đó dọn dẹp (reload, restart, hoặc tắt máy bật lại) là sổ nháp bị **xoá trắng**, quay về mặc định.
+> - **Sổ chính thức (permanent)**: nằm trong tủ hồ sơ (`/etc/firewalld/`), không mất đi, nhưng **viết vào sổ chính thức không tự động dán ra ngoài cửa**.
+>
+> - `firewall-cmd --add-service=ssh` (không `--permanent`) → bạn dán ngay một tờ giấy "SSH được phép" lên cửa. Có hiệu lực **ngay lập tức**, nhưng chỉ là sổ nháp — lần sau reload/reboot, tờ giấy biến mất, cổng lại đóng.
+> - `firewall-cmd --permanent --add-service=ssh` → bạn ghi "SSH được phép" vào sổ chính thức trong tủ. Ghi xong nhưng **cửa ngoài vẫn chưa đổi gì** — luật cũ vẫn đang áp dụng.
+> - `firewall-cmd --reload` → nhân viên bảo vệ **đọc lại sổ chính thức** và dán đúng những gì trong đó ra cửa, thay cho sổ nháp cũ.
+>
+> **Vì sao ví dụ dùng `--permanent` + `--reload` thay vì chỉ chạy runtime?**
+> Vì đây là bước mở cổng SSH — thứ bạn cần nó sống sót qua mọi lần reload/reboot, không phải chỉ có hiệu lực tạm bợ. Nếu chỉ chạy runtime, SSH sẽ *tưởng như* đã mở, nhưng chỉ cần firewalld reload (hoặc VPS khởi động lại) là bạn **tự khoá mình ra ngoài** mà không hay biết — đúng cái bẫy guide đã cảnh báo ở đầu bước này.
 
 ---
 
