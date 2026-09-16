@@ -35,6 +35,8 @@ toàn bộ kết quả về trình bày trước mắt cậu.
 - `getent hosts google.com` — hỏi xem tên miền này tương ứng với địa chỉ IP
   nào, dựa theo thứ tự ưu tiên (`/etc/hosts` trước hay máy chủ DNS trước).
 
+---
+
 ## 2. Owner vs group — Linux check quyền theo thứ tự nào?
 
 Không cộng dồn owner + group. Linux chỉ dùng **đúng 1 bộ** quyền:
@@ -49,6 +51,8 @@ Ví dụ: thư mục `user-A:group-X`. `user-A` không thuộc `group-X` vẫn �
 xử lý theo owner bits. `user-B` thuộc `group-X` (không phải owner) thì
 dùng group bits.
 
+---
+
 ## 3. `chgrp` + setgid (`chmod 2775`) khác `chmod 775` thường ở đâu?
 
 - `chgrp <group> <dir>` — đổi group sở hữu thư mục.
@@ -62,48 +66,70 @@ dùng group bits.
   hay không**. Setgid mà group không có quyền ghi (`2755`) thì cũng chẳng
   ai trong group tạo được file mới trong đó.
 
-## 4.  Khoá `ChrootDirectory` và cấu hình `sshd` cho `ec-qa1`
-Biến tài khoản ec-qa1 thành một người dùng chỉ được phép truyền tệp qua SFTP và "nhốt" hoàn toàn trong phòng riêng của họ, không thể nhìn thấy bất kỳ ngóc ngách nào khác của hệ thống.
+---
+
+## 4. Khoá `ChrootDirectory` và cấu hình `sshd` cho `ec-qa1`
+
+Biến tài khoản `ec-qa1` thành một người dùng chỉ được phép truyền tệp qua
+SFTP và "nhốt" hoàn toàn trong phòng riêng của họ, không thể nhìn thấy bất
+kỳ ngóc ngách nào khác của hệ thống.
 
 Thêm block sau vào **cuối** `/etc/ssh/sshd_config` (mở bằng `sudo vi
-/etc/ssh/sshd_config` hoặc `sudo nano ...` — file này root:root, user
+/etc/ssh/sshd_config` hoặc `sudo nano ...` — file này `root:root`, user
 thường không mở ghi được), **sau** block `Match User qa1` đã có từ bản gốc
 (không chèn xen vào giữa):
 
 ```
 Match User ec-qa1
-ChrootDirectory /home/ec-qa1
-ForceCommand internal-sftp
-AllowTcpForwarding no
-X11Forwarding no
+    ChrootDirectory /home/ec-qa1
+    ForceCommand internal-sftp
+    AllowTcpForwarding no
+    X11Forwarding no
 ```
 
-1. Khái niệm Chroot (Change Root) là gì?
+### Khái niệm Chroot (Change Root) là gì?
 
-Bình thường, gốc rễ của toàn bộ căn hộ VPS bắt đầu từ / (đại sảnh). Một người dùng bình thường có thể gõ cd /etc hay cd /var để đi dạo xem các tệp tin hệ thống.
+Bình thường, gốc rễ của toàn bộ căn hộ VPS bắt đầu từ `/` (đại sảnh). Một
+người dùng bình thường có thể gõ `cd /etc` hay `cd /var` để đi dạo xem các
+tệp tin hệ thống.
 
-ChrootDirectory /home/ec-qa1 làm một trò ảo thuật: Nó nói với hệ thống rằng đối với riêng anh chàng ec-qa1, thư mục /home/ec-qa1 chính là gốc /.
+`ChrootDirectory /home/ec-qa1` làm một trò ảo thuật: nó nói với hệ thống
+rằng đối với riêng anh chàng `ec-qa1`, thư mục `/home/ec-qa1` chính là gốc
+`/`.
 
-Anh ta đứng trong phòng mình và nhìn quanh, tưởng rằng căn phòng đó là toàn bộ vũ trụ.
+Anh ta đứng trong phòng mình và nhìn quanh, tưởng rằng căn phòng đó là toàn
+bộ vũ trụ. Anh ta không thể `cd ..` để đi lùi ra ngoài đại sảnh được nữa —
+**blast radius** của anh ta bị thu hẹp tuyệt đối về con số 0 bên ngoài căn
+phòng đó.
 
-Anh ta không thể cd .. để đi lùi ra ngoài đại sảnh được nữa. Bán kính sát thương (Blast Radius) của anh ta bị thu hẹp tuyệt đối về con số 0 bên ngoài căn phòng đó!
+### Giải phẫu các quy tắc trong khối cấu hình `sshd_config`
 
-2. Giải phẫu các quy tắc trong khối cấu hình sshd_config
+- `Match User ec-qa1` — chỉ áp dụng những luật nghiêm ngặt bên dưới cho
+  đúng một mình người dùng `ec-qa1`.
+- `ChrootDirectory /home/ec-qa1` — nhốt anh ta trong phòng `/home/ec-qa1`.
+- `ForceCommand internal-sftp` — ép buộc anh ta chỉ được dùng giao thức
+  truyền tệp SFTP, cấm tuyệt đối việc mở terminal gõ lệnh (`bash`/`sh`).
+- `AllowTcpForwarding no` & `X11Forwarding no` — chặn các tính năng chuyển
+  tiếp mạng và giao diện đồ hoạ, tránh bị lợi dụng làm cầu nối hack ra
+  ngoài.
 
-Match User ec-qa1: Chỉ áp dụng những luật nghiêm ngặt bên dưới cho đúng một mình người dùng ec-qa1.
+### Tại sao bắt buộc phải chạy `chown root:root /home/ec-qa1` và `chmod 755`?
 
-ChrootDirectory /home/ec-qa1: Nhốt anh ta trong phòng /home/ec-qa1.
+Đây chính là "yêu cầu nghiêm ngặt" được nhắc tới trong phần "Vì sao":
 
-ForceCommand internal-sftp: Ép buộc anh ta chỉ được dùng giao thức truyền tệp SFTP. Cấm tuyệt đối việc mở Terminal gõ lệnh (bash hay sh).
+Quy luật bất di bất dịch của OpenSSH: thư mục dùng làm `ChrootDirectory`
+bắt buộc phải thuộc sở hữu của `root:root`, và không một ai khác (kể cả
+chính `ec-qa1`) được phép có quyền ghi (`w`) vào thư mục gốc đó.
 
-AllowTcpForwarding no & X11Forwarding no: Chặn các tính năng chuyển tiếp mạng và giao diện đồ họa, tránh bị lợi dụng làm cầu nối hack ra ngoài.
+Nếu cậu để `ec-qa1` sở hữu thư mục `/home/ec-qa1`
+(`chown ec-qa1:ec-qa1`), ông gác cổng `sshd` sẽ coi đó là một lỗ hổng bảo
+mật cực lớn (vì người bị nhốt có thể tự sửa cấu hình phòng giam để vượt
+ngục) và sẽ từ chối toàn bộ kết nối ngay lập tức.
 
-3. Tại sao bắt buộc phải chạy chown root:root /home/ec-qa1 và chmod 755?
+### `sudo sshd -t` và `sudo systemctl restart sshd` để làm gì?
 
-Đây chính là "yêu cầu nghiêm ngặt" được nhắc tới trong phần Vì sao:
-
-Quy luật bất di bất dịch của OpenSSH: Thư mục dùng làm ChrootDirectory bắt buộc phải thuộc sở hữu của root:root và không một ai khác (kể cả chính ec-qa1) được phép có quyền ghi (w) vào thư mục gốc đó.
-
-Nếu cậu để ec-qa1 sở hữu thư mục /home/ec-qa1 (chown ec-qa1:ec-qa1), ông gác cổng sshd sẽ coi đó là một lỗ hổng bảo mật cực lớn (vì người bị nhốt có thể tự sửa cấu hình phòng giam để vượt ngục) và sẽ từ chối toàn bộ kết nối ngay lập tức!
-
-4. sshd -t và systemctl restart sshdsudo sshd -t: Nhờ ông gác cổng đọc kiểm tra thử xem cậu có gõ sai cú pháp nào trong file cấu hình không trước khi áp dụng. Nếu màn hình im lặng $\rightarrow$ an toàn!sudo systemctl restart sshd: Khởi động lại dịch vụ SSH để ông gác cổng nạp bộ luật mới vào RAM.
+- `sudo sshd -t` — nhờ ông gác cổng đọc, kiểm tra thử xem cậu có gõ sai cú
+  pháp nào trong file cấu hình không, **trước khi** áp dụng thật. Màn hình
+  im lặng → an toàn.
+- `sudo systemctl restart sshd` — khởi động lại dịch vụ SSH để ông gác
+  cổng nạp bộ luật mới vào RAM.
