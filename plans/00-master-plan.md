@@ -95,7 +95,7 @@ flowchart TB
 | # | Plan file | Level(s) covered | Status |
 |---|-----------|-------------------|--------|
 | 1 | [01-foundation.md](01-foundation.md) | Level 0 — VPS Foundation | **In progress** |
-| 2 | 02-application-deployment.md | Level 1 — Deploy catalog-service | Not started |
+| 2 | [02-application-deployment.md](02-application-deployment.md) | Level 1 — Deploy catalog-service | **Created ahead of schedule** (chưa thực thi) |
 | 3 | 03-ci-cd.md | Level 2 — CI/CD | Not started |
 | 4 | 04-production-architecture.md | Level 3 — Add DB/Redis/queue/worker | Not started |
 | 5 | 05-observability.md | Level 4 — Prometheus/Grafana/Loki | Not started |
@@ -104,8 +104,10 @@ flowchart TB
 | 8 | 08-kubernetes.md | Level 7 — Kubernetes/Helm/GitOps | Not started |
 | 9 | 09-enterprise-simulation.md | Level 8 — Full enterprise simulation | Not started |
 
-Plan files từ 02 trở đi **chưa được tạo** — sẽ tạo khi bắt đầu phase tương
-ứng, đúng theo nguyên tắc "không nhồi tất cả vào một lần".
+Plan files từ 03 trở đi **chưa được tạo** — sẽ tạo khi bắt đầu phase tương
+ứng, đúng theo nguyên tắc "không nhồi tất cả vào một lần". Riêng
+`02-application-deployment.md` đã được tạo sớm hơn dự kiến — xem "Important
+Decisions" bên dưới.
 
 ## Dependency Graph
 
@@ -131,8 +133,16 @@ Plan files từ 02 trở đi **chưa được tạo** — sẽ tạo khi bắt �
 ## Current Status
 
 - Company & repo decision: **done** (this document + 01-foundation.md).
-- Active plan: `01-foundation.md`, Level 0, Ticket `NOVA-001`.
-- Waiting on: người học thực hiện task đầu tiên trên VPS (chưa nhận solution).
+- Active plan: `01-foundation.md`, Level 0 — NOVA-001 đã có review đầy đủ
+  cho 4 Reflection Questions (chưa câu nào đúng hoàn toàn); NOVA-002 mới có
+  `how/NOVA-002-guide.md`, chưa bắt đầu thực thi. Bản B của NOVA-002 (trên
+  project thật `electrostore-backend`, namespace `ec-*`) cũng mới có
+  `how/NOVA-002-guide-B.md`, chưa thực thi — chạy song song, không thay thế
+  bản gốc.
+- `02-application-deployment.md` (NOVA-003/004/005) đã được viết trước theo
+  yêu cầu người học, nhưng **chưa được thực thi** — chờ Level 0 xong.
+- Waiting on: người học hoàn tất Level 0 (NOVA-001 + NOVA-002) trước khi bắt
+  đầu `how/NOVA-003-guide.md` trở đi.
 
 ## Completed Outputs
 
@@ -143,8 +153,8 @@ Plan files từ 02 trở đi **chưa được tạo** — sẽ tạo khi bắt �
 
 ## Next Plan
 
-`02-application-deployment.md` — sẽ tạo sau khi Level 0 (VPS foundation)
-hoàn tất và được review.
+`02-application-deployment.md` — **đã tạo** (2026-09-09, sớm hơn dự kiến).
+Việc thực thi (`how/NOVA-003-guide.md` trở đi) vẫn chờ Level 0 hoàn tất.
 
 ## Known Risks
 
@@ -170,6 +180,13 @@ hoàn tất và được review.
   sao" buộc người học tự giải thích lại bản chất bằng lời của mình, không
   chỉ hoàn thành acceptance criteria bằng thao tác. Đây là yêu cầu trực tiếp
   từ người học, áp dụng cho toàn bộ chương trình.
+- **Tạo trước 02-application-deployment.md (2026-09-09):** người học yêu cầu
+  xem trước lộ trình Level 1 dù Level 0 (NOVA-001/NOVA-002) chưa hoàn tất —
+  đi ngược lại "Prerequisites for Next Plan" đã ghi trong `01-foundation.md`.
+  Ngoại lệ có chủ đích, không phải bỏ qua quy trình: plan đã viết xong (3
+  ticket NOVA-003/004/005), nhưng **thực thi thật** (tạo `how/NOVA-003-guide.md`
+  trở đi, chạy lệnh trên VPS) vẫn phải chờ Level 0 xong, đúng nguyên tắc
+  "learn by doing" — không đọc trước làm sau đảo ngược thứ tự học.
 - **Team roster & RBAC model (2026-08-19):** team kỹ thuật NovaCart cố định
   ở **5 người** — không thêm dev cho đến khi scope vượt quá 1 service (Level
   3+ khi có thêm `inventory-service`/`order-service`). Lý do: 2 dev là đủ để
@@ -178,6 +195,17 @@ hoàn tất và được review.
   identity (Okta/LDAP/Teleport) — ngoài phạm vi chương trình hiện tại. Chi
   tiết account/group/ACL/sudoers nằm trong ticket `NOVA-002`
   (`01-foundation.md`).
+- **NOVA-002 Bản B trên project thật (2026-09-16):** ngoài NOVA-002 gốc
+  (trên `catalog-service` hư cấu), người học yêu cầu thêm 1 lượt thực hành
+  song song trên project thật của họ — `electrostore-backend`
+  (https://github.com/hoangduongZ/e-commerce-backend, Java 21/Spring Boot
+  3.5, đúng stack bắt buộc mục 15). Chạy trên **cùng VPS** với lab NovaCart
+  (không dựng VPS riêng), nên toàn bộ user/group/thư mục dùng namespace
+  `ec-*` để không đụng `dev1`/`dev2`/`qa1`/`deploy`/`catalog-logs` của bản
+  gốc. Không phải ticket mới — acceptance criteria/reflection questions giữ
+  nguyên NOVA-002, chỉ đổi tên resource. Chi tiết: "NOVA-002 — Bản B" trong
+  [01-foundation.md](01-foundation.md) và
+  [`how/NOVA-002-guide-B.md`](../how/NOVA-002-guide-B.md).
 
 ## Handoff to Next Plan
 
@@ -187,6 +215,10 @@ Completed:
 Artifacts Created:
 - `plans/00-master-plan.md` (this file)
 - `plans/01-foundation.md`
+- `plans/02-application-deployment.md` (tạo sớm, xem Important Decisions —
+  chưa thực thi)
+- `how/NOVA-001-guide.md`, `how/NOVA-002-guide.md`, `how/NOVA-002-guide-B.md`
+  (bản B trên project thật electrostore-backend)
 
 Configuration Changed:
 - None yet (no VPS access established).

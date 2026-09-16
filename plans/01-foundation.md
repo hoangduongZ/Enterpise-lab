@@ -358,6 +358,47 @@ Reflection Questions (Feynman):
      xoá" vẫn khác về bản chất so với "không tạo account từ đầu"?
 ```
 
+### NOVA-002 — Bản B (song song, trên project thật: electrostore-backend)
+
+Quyết định 2026-09-16: ngoài việc thực hành NOVA-002 trên seed repo hư cấu
+`catalog-service`, người học yêu cầu lặp lại đúng bài học RBAC này trên
+project thật của họ — **electrostore-backend**
+(https://github.com/hoangduongZ/e-commerce-backend, "ElectroStore Backend"),
+Java 21 / Spring Boot 3.5, modular monolith, đúng stack Java/Spring Boot bắt
+buộc ở mục 15 system prompt. Khác `catalog-service`, đây là project người
+học sẽ thật sự đưa lên production sau này.
+
+Chạy trên **cùng 1 VPS** với lab NovaCart (không dựng VPS riêng) — vì vậy
+mọi tên user/group/thư mục phải đổi để không đụng namespace của NOVA-002
+gốc. Bản B **không phải ticket mới**: acceptance criteria, constraints và 4
+Reflection Questions giữ nguyên y hệt ticket NOVA-002 ở trên, chỉ đổi tên
+resource theo bảng dưới. Guide chi tiết:
+[`how/NOVA-002-guide-B.md`](../how/NOVA-002-guide-B.md).
+
+| Vai trò | NOVA-002 gốc (catalog-service) | Bản B (electrostore-backend) |
+|---|---|---|
+| Group deploy | `deploy` | `ec-deploy` |
+| Group log | `catalog-logs` | `ec-logs` |
+| Developer 1 | `dev1` | `ec-dev1` |
+| Developer 2 (sudoers riêng) | `dev2` | `ec-dev2` |
+| QA (SFTP-only) | `qa1` | `ec-qa1` |
+| Thư mục scaffold app | `/opt/catalog-service` | `/opt/electrostore-backend` |
+| Thư mục log scaffold | `/var/log/catalog-service` | `/var/log/electrostore-backend` |
+| File sudoers riêng | `/etc/sudoers.d/dev2` | `/etc/sudoers.d/ec-dev2` |
+| Cmnd_Alias placeholder | `CATALOG_SVC_TODO` | `ELECTROSTORE_SVC_TODO` |
+
+Lý do tách namespace `ec-*` thay vì dùng lại `dev1`/`dev2`/`qa1`: mô phỏng
+đúng tình huống 1 VPS host nhiều ứng dụng độc lập — mỗi app có ranh giới
+quyền riêng, một tài khoản/app bị chiếm không tự động kéo theo quyền trên
+app còn lại (least-privilege ở mức *giữa các ứng dụng*, không chỉ *giữa các
+người*).
+
+Ghi chú: đây là project cá nhân (không có team 5 người thật như NovaCart) —
+`ec-dev1`/`ec-dev2`/`ec-qa1` là account **thực hành đúng pattern quyền**,
+không gắn với người thật. Mục tiêu là nắm chắc RBAC trên đúng tên resource
+sẽ dùng khi deploy `electrostore-backend` thật, không phải dựng thêm một
+công ty hư cấu thứ hai.
+
 ## Handoff to Next Plan
 
 Completed:
@@ -374,6 +415,9 @@ Decisions:
   bắt đầu bằng `catalog-service` only.
 - Team roster 5 người + RBAC model (group/sudoers/ACL/chroot) — xem "Team
   Roster" và ticket NOVA-002 ở trên.
+- Bản B của NOVA-002 (2026-09-16): lặp lại RBAC trên project thật
+  `electrostore-backend`, cùng VPS, namespace `ec-*` riêng — xem "NOVA-002 —
+  Bản B" ở trên và [`how/NOVA-002-guide-B.md`](../how/NOVA-002-guide-B.md).
 
 Known Issues:
 - (chưa có)
