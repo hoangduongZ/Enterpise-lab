@@ -2,134 +2,182 @@
 description: dùng để note những kiến thức về linux rút ra trong quá trình học và practice
 ---
 
-# Linux Notes
+# Linux Notes — Bảng Quản Lý Tập Trung
 
-## 1. `getent` dùng để làm gì trong Linux?
+| STT | Chủ đề | Mục đích | Lệnh / Cấu hình chính | Cơ chế cốt lõi | Lưu ý quan trọng (Gotchas) |
+| :---: | :--- | :--- | :--- | :--- | :--- |
+| **1** | **`getent`** | Tra cứu danh bạ (user, group, host) thống nhất từ cả nguồn local lẫn máy chủ mạng (LDAP, AD). | `getent passwd [user]`<br>`getent group [group]`<br>`getent hosts [domain]` | Truy vấn qua điều hướng `/etc/nsswitch.conf`, gom kết quả từ file nội bộ (`/etc/*`) và máy chủ mạng thay vì chỉ đọc file tĩnh. | `cat /etc/passwd` chỉ thấy tài khoản local, bị mù tịt về tài khoản mạng enterprise. |
+| **2** | **Thứ tự kiểm tra quyền**<br>(Owner vs Group) | Xác định quyền truy cập thực tế của người dùng khi thao tác trên file/thư mục. | `ls -l`<br>`chmod <mode> <file>` | Kiểm tra tuần tự độc lập, **không cộng dồn**:<br>1. Trùng UID → dùng bộ **Owner**<br>2. Trùng GID → dùng bộ **Group**<br>3. Không khớp → dùng bộ **Other** | Nếu user là Owner thì chỉ áp dụng quyền Owner, kể cả khi group của user đó có quyền lớn hơn. |
+| **3** | **`setgid` thư mục**<br>(`chmod 2775`) | Thiết lập thư mục chia sẻ nhóm (collaborative shared folder) cho nhiều người cùng làm việc. | `chgrp <group> <dir>`<br>`chmod 2775 <dir>` | Bit `2` (setgid) ép mọi file/thư mục con mới tạo **tự động thừa kế group của thư mục cha** (thay vì lấy group chính của người tạo). | Group phải có quyền ghi (`w`) (dùng `2775`, không dùng `2755`) thì thành viên trong group mới tạo được file bên trong. |
+| **4** | **SSH Chroot SFTP Jail** | Cách ly tuyệt đối tài khoản: chỉ cho truyền tệp SFTP trong thư mục chỉ định, cấm mở terminal và cấm forward mạng. | Cấu hình `/etc/ssh/sshd_config`:<br>`Match User <user>`<br>&nbsp;&nbsp;`ChrootDirectory <dir>`<br>&nbsp;&nbsp;`ForceCommand internal-sftp`<br>&nbsp;&nbsp;`AllowTcpForwarding no`<br>&nbsp;&nbsp;`X11Forwarding no`<br><br>Kiểm tra & reload:<br>`sudo sshd -t`<br>`sudo systemctl restart sshd` | Biến thư mục chỉ định thành gốc ảo (`/`) đối với user; ép phiên làm việc qua internal-sftp và chặn các kênh chuyển tiếp dữ liệu. | Thư mục `ChrootDirectory` **bắt buộc** do `root:root` sở hữu và có quyền `755`. Nếu để user sở hữu, `sshd` sẽ từ chối kết nối ngay lập tức. |
+| **5** | **`docker run` cơ bản** | Tạo, cấu hình và khởi chạy ứng dụng trong container biệt lập ở chế độ ngầm và mở port ra ngoài. | `docker run -d --name <tên> -p <host>:<container> <image>`<br><br>*Ví dụ:*<br>`docker run -d --name my-nginx -p 80:80 nginx` | Khởi tạo container từ image:<br>• `-d` (`--detach`): Chạy ngầm, nhả terminal<br>• `--name`: Đặt tên định danh container<br>• `-p`: Ánh xạ cổng host vào container | Cú pháp cổng là `<Host_Port>:<Container_Port>`. Tự động pull image từ Docker Hub về nếu ở local chưa có sẵn. |
 
-Trước đây, ta từng biết chân lý "mọi thứ đều là tập tin" — ví dụ muốn xem
-danh bạ người dùng thì mở cuốn sổ `/etc/passwd`, muốn xem nhóm thì lật sổ
-`/etc/group`. Nhưng cách đó có một hạn chế lớn:
+  • docker volume create: Lệnh tạo một vùng lưu trữ dữ liệu (Volume) độc lập trên máy chủ do Docker quản lý.
+  • n8n_data: Tên của volume. Việc tạo volume giúp lưu trữ toàn bộ workflows, credentials và thông tin cấu hình
+  của n8n. Khi container bị dừng, xóa hoặc nâng cấp lên phiên bản mới, dữ liệu của bạn sẽ không bị mất.
 
-- Các file trong `/etc/` chỉ là danh bạ **cục bộ** (nội bộ căn hộ).
-- Nếu máy chủ của cậu được kết nối vào một hệ thống mạng doanh nghiệp (như
-  dùng LDAP, Active Directory), thông tin tài khoản người dùng không hề nằm
-  trên ổ cứng VPS, mà được lưu ở một máy chủ trung tâm khác.
-- Khi cậu dùng lệnh `cat /etc/passwd`, cậu sẽ bị mù tịt về những tài khoản
-  mạng này.
 
-Lúc này, `getent` xuất hiện: nó không tự đi đọc mò file, mà nó nhìn vào
-cuốn sổ cấu hình điều hướng dịch vụ đặt tên (`/etc/nsswitch.conf`). Nó sẽ
-hỏi cả cuốn sổ nội bộ `/etc/passwd` **lẫn** máy chủ mạng bên ngoài, rồi gom
-toàn bộ kết quả về trình bày trước mắt cậu.
+Tôi đã hoàn thành việc triển khai kiến trúc tách rời từng file compose theo đúng lựa chọn của bạn tại thư mục
+  /users.
+  Dưới đây là cấu trúc thư mục, chi tiết các câu lệnh đã chạy và giải thích từng bước:
+  ──────
+  ### 1. Cấu trúc thư mục tại /users
+    /users/
+    ├── n8n/
+    │   └── docker-compose.yml        # Quản lý riêng dịch vụ n8n
+    └── nginx-proxy/
+        ├── docker-compose.yml        # Quản lý riêng Nginx Gateway
+        └── conf.d/
+            └── n8n.conf              # Cấu hình Reverse Proxy trỏ đến container n8n
+  ──────
+  ### 2. Các câu lệnh đã thực hiện và giải thích chi tiết
+  #### Bước 1: Khởi tạo Docker Network dùng chung và dọn dẹp container cũ
 
-### Ví dụ
+    docker network create proxy-network && docker stop my-nginx n8n && docker rm my-nginx n8n
 
-- `getent passwd` — liệt kê toàn bộ người dùng mà hệ thống nhận diện được
-  (kể cả người dùng cục bộ lẫn người dùng mạng).
-- `getent passwd nova-ops` — tìm kiếm riêng người dùng `nova-ops`, trả về
-  đúng 1 dòng thông tin định danh tương tự như trong file `/etc/passwd` mà
-  không cần phải dùng lệnh `grep` để lọc thủ công.
+  • Giải thích:
+      • docker network create proxy-network: Tạo mạng bridge có tên proxy-network. Mạng này đóng vai trò làm cầu
+      nối để các container ở các file compose khác nhau (Nginx và n8n) có thể tìm thấy và giao tiếp với nhau bằng
+      tên container.
+      • docker stop my-nginx n8n: Dừng 2 container chạy đơn lẻ cũ.
+      • docker rm my-nginx n8n: Xóa 2 container cũ để giải phóng tài nguyên. (Volume n8n_data được giữ nguyên vẹn
+      100%, không bị ảnh hưởng).
 
-**Tra cứu địa chỉ mạng / hostname (`hosts`):**
+  ──────
+  #### Bước 2: Tạo cấu hình cho n8n (/users/n8n/docker-compose.yml)
 
-- `getent hosts google.com` — hỏi xem tên miền này tương ứng với địa chỉ IP
-  nào, dựa theo thứ tự ưu tiên (`/etc/hosts` trước hay máy chủ DNS trước).
+  File này khai báo container n8n gia nhập vào mạng proxy-network và gắn volume dữ liệu n8n_data:
+    services:
+      n8n:
+        image: n8nio/n8n:latest
+        container_name: n8n
+        restart: unless-stopped
+        networks:
+          - proxy-network
+        environment:
+          - N8N_PORT=5678
+          - N8N_PROTOCOL=http
+          - NODE_ENV=production
+          - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+        volumes:
+          - n8n_data:/home/node/.n8n
 
----
+    networks:
+      proxy-network:
+        external: true
 
-## 2. Owner vs group — Linux check quyền theo thứ tự nào?
+    volumes:
+      n8n_data:
+        external: true
+  • Điểm nổi bật: Không cần map port 5678:5678 ra bên ngoài internet nữa, giúp bảo vệ an toàn cho n8n; chỉ có
+  Nginx trong mạng nội bộ mới gọi được vào n8n.
+  ──────
+  #### Bước 3: Tạo cấu hình cho Nginx Proxy (/users/nginx-proxy/)
+  File cấu hình chuyển tiếp /users/nginx-proxy/conf.d/n8n.conf:
+    server {
+        listen 80;
+        server_name _;
 
-Không cộng dồn owner + group. Linux chỉ dùng **đúng 1 bộ** quyền:
+        location / {
+            proxy_pass http://n8n:5678;
+            proxy_http_version 1.1;
+            proxy_set_header Upgrade $http_upgrade;
+            proxy_set_header Connection 'upgrade';
+            proxy_set_header Host $host;
+            proxy_cache_bypass $http_upgrade;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+    }
+  • Giải thích: proxy_pass http://n8n:5678 sử dụng trực tiếp tên container n8n làm hostname. Các dòng Upgrade và
+  Connection 'upgrade' giúp n8n hoạt động tốt với WebSocket (giao tiếp realtime trên giao diện).
 
-- UID trùng owner → dùng bộ **owner**, luôn vậy dù user đó có thuộc group
-  sở hữu file hay không.
-- UID không trùng owner, nhưng GID (kể cả group phụ) trùng group sở hữu
-  file → dùng bộ **group**.
-- Không khớp gì cả → dùng bộ **other**.
+  File /users/nginx-proxy/docker-compose.yml:
+    services:
+      nginx:
+        image: nginx:latest
+        container_name: nginx-proxy
+        restart: unless-stopped
+        networks:
+          - proxy-network
+        ports:
+          - "80:80"
+        volumes:
+          - ./conf.d:/etc/nginx/conf.d:ro
 
-Ví dụ: thư mục `user-A:group-X`. `user-A` không thuộc `group-X` vẫn được
-xử lý theo owner bits. `user-B` thuộc `group-X` (không phải owner) thì
-dùng group bits.
+    networks:
+      proxy-network:
+        external: true
+  • Giải thích: Nginx mở cổng 80:80 ra ngoài máy chủ để đón nhận mọi truy cập web và mount thư mục conf.d vào
+  container.
+  ──────
+  #### Bước 4: Khởi chạy từng dịch vụ bằng Docker Compose
+    cd /users/n8n && docker compose up -d
+    cd /users/nginx-proxy && docker compose up -d
 
----
+  • Giải thích:
+      • docker compose up -d: Đọc file docker-compose.yml tại thư mục hiện tại, tự động tạo container và khởi chạy
+      ngầm trong nền (-d).
 
-## 3. `chgrp` + setgid (`chmod 2775`) khác `chmod 775` thường ở đâu?
+  ──────
+  #### Bước 5: Kiểm tra kết quả
 
-- `chgrp <group> <dir>` — đổi group sở hữu thư mục.
-- `775`/`755`... chỉ trả lời "ai được làm gì" (rwx cho owner/group/other).
-- Số `2` đứng đầu (`2775`) = **setgid bit** — trả lời câu khác: "file/thư
-  mục MỚI tạo bên trong sẽ mang group nào?". Không có setgid → file mới
-  mang group CHÍNH của người tạo. Có setgid → file mới tự động mang group
-  của thư mục cha, bất kể ai tạo ra nó.
-- Hai cơ chế độc lập: setgid quyết định file mới **thuộc group nào**, còn
-  chữ số group (`7` hay `5`) quyết định thành viên group đó **có ghi được
-  hay không**. Setgid mà group không có quyền ghi (`2755`) thì cũng chẳng
-  ai trong group tạo được file mới trong đó.
+    docker ps
+    curl -s -o /dev/null -w "%{http_code}\n" http://localhost:80
 
----
+  • Giải thích:
+      • docker ps: Xác nhận cả 2 container nginx-proxy (port 80) và n8n (nội bộ) đều đang chạy Up.
+      • curl: Kiểm tra truy vấn HTTP vào port 80 qua Nginx, trả về mã 200 và nội dung n8n Editor UI đầy đủ.
 
-## 4. Khoá `ChrootDirectory` và cấu hình `sshd` cho `ec-qa1`
+  ──────
+  ### 3. Cách truy cập và quản lý
 
-Biến tài khoản `ec-qa1` thành một người dùng chỉ được phép truyền tệp qua
-SFTP và "nhốt" hoàn toàn trong phòng riêng của họ, không thể nhìn thấy bất
-kỳ ngóc ngách nào khác của hệ thống.
+  • Truy cập giao diện n8n: Bây giờ bạn chỉ cần mở trình duyệt và gõ thẳng địa chỉ IP (cổng 80 mặc định, không cần
+  gõ :5678 nữa):
+  👉 http://103.252.137.170
+  • Quản lý riêng n8n:
+    cd /users/n8n
+    docker compose restart    # Khởi động lại n8n
+    docker compose logs -f    # Xem log n8n
 
-Thêm block sau vào **cuối** `/etc/ssh/sshd_config` (mở bằng `sudo vi
-/etc/ssh/sshd_config` hoặc `sudo nano ...` — file này `root:root`, user
-thường không mở ghi được), **sau** block `Match User qa1` đã có từ bản gốc
-(không chèn xen vào giữa):
+  • Quản lý riêng Nginx (khi sau này bạn muốn thêm website mới):
+    cd /users/nginx-proxy
+    # Thêm file config mới vào thư mục conf.d/ rồi chạy:
+    docker compose exec nginx nginx -s reload  # Tải lại cấu hình không cần downtime
 
-```
-Match User ec-qa1
-    ChrootDirectory /home/ec-qa1
-    ForceCommand internal-sftp
-    AllowTcpForwarding no
-    X11Forwarding no
-```
+Lỗi này xuất hiện do n8n phiên bản mới mặc định bật tính năng Secure Cookie (chỉ cho phép lưu cookie đăng nhập
+  qua kết nối bảo mật HTTPS). Vì hiện tại bạn đang truy cập qua HTTP thường bằng địa chỉ IP
+  (http://103.252.137.170) nên n8n chặn không cho đăng nhập.
 
-### Khái niệm Chroot (Change Root) là gì?
+  Tôi đã khắc phục vấn đề này. Dưới đây là chi tiết thay đổi và câu lệnh đã thực hiện:
+  ──────
+  ### 1. Thay đổi cấu hình tại /users/n8n/docker-compose.yml
 
-Bình thường, gốc rễ của toàn bộ căn hộ VPS bắt đầu từ `/` (đại sảnh). Một
-người dùng bình thường có thể gõ `cd /etc` hay `cd /var` để đi dạo xem các
-tệp tin hệ thống.
+  Đã thêm biến môi trường N8N_SECURE_COOKIE=false vào phần environment:
 
-`ChrootDirectory /home/ec-qa1` làm một trò ảo thuật: nó nói với hệ thống
-rằng đối với riêng anh chàng `ec-qa1`, thư mục `/home/ec-qa1` chính là gốc
-`/`.
+        environment:
+          - N8N_SECURE_COOKIE=false      # Cho phép hoạt động qua HTTP thường (IP)
+          - N8N_PORT=5678
+          - N8N_PROTOCOL=http
+          - NODE_ENV=production
+          - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+  ──────
+  ### 2. Câu lệnh đã chạy và giải thích
 
-Anh ta đứng trong phòng mình và nhìn quanh, tưởng rằng căn phòng đó là toàn
-bộ vũ trụ. Anh ta không thể `cd ..` để đi lùi ra ngoài đại sảnh được nữa —
-**blast radius** của anh ta bị thu hẹp tuyệt đối về con số 0 bên ngoài căn
-phòng đó.
+    cd /users/n8n && docker compose up -d
 
-### Giải phẫu các quy tắc trong khối cấu hình `sshd_config`
+  Giải thích:
 
-- `Match User ec-qa1` — chỉ áp dụng những luật nghiêm ngặt bên dưới cho
-  đúng một mình người dùng `ec-qa1`.
-- `ChrootDirectory /home/ec-qa1` — nhốt anh ta trong phòng `/home/ec-qa1`.
-- `ForceCommand internal-sftp` — ép buộc anh ta chỉ được dùng giao thức
-  truyền tệp SFTP, cấm tuyệt đối việc mở terminal gõ lệnh (`bash`/`sh`).
-- `AllowTcpForwarding no` & `X11Forwarding no` — chặn các tính năng chuyển
-  tiếp mạng và giao diện đồ hoạ, tránh bị lợi dụng làm cầu nối hack ra
-  ngoài.
+  • cd /users/n8n: Di chuyển vào thư mục quản lý của n8n.
+  • docker compose up -d: Docker Compose tự động phát hiện file cấu hình vừa được cập nhật thêm biến môi trường,
+  nó sẽ chỉ tái tạo lại container n8n (Container n8n Recreate) để áp dụng ngay cấu hình mới mà không làm mất bất
+  kỳ dữ liệu nào trong volume.
+  ──────
+  ### 3. Kiểm tra lại
 
-### Tại sao bắt buộc phải chạy `chown root:root /home/ec-qa1` và `chmod 755`?
+  Bây giờ bạn hãy làm mới trang web trên trình duyệt (nhấn Ctrl + F5 trên Windows hoặc Cmd + Shift + R trên Mac):
 
-Đây chính là "yêu cầu nghiêm ngặt" được nhắc tới trong phần "Vì sao":
+  👉 http://103.252.137.170
 
-Quy luật bất di bất dịch của OpenSSH: thư mục dùng làm `ChrootDirectory`
-bắt buộc phải thuộc sở hữu của `root:root`, và không một ai khác (kể cả
-chính `ec-qa1`) được phép có quyền ghi (`w`) vào thư mục gốc đó.
-
-Nếu cậu để `ec-qa1` sở hữu thư mục `/home/ec-qa1`
-(`chown ec-qa1:ec-qa1`), ông gác cổng `sshd` sẽ coi đó là một lỗ hổng bảo
-mật cực lớn (vì người bị nhốt có thể tự sửa cấu hình phòng giam để vượt
-ngục) và sẽ từ chối toàn bộ kết nối ngay lập tức.
-
-### `sudo sshd -t` và `sudo systemctl restart sshd` để làm gì?
-
-- `sudo sshd -t` — nhờ ông gác cổng đọc, kiểm tra thử xem cậu có gõ sai cú
-  pháp nào trong file cấu hình không, **trước khi** áp dụng thật. Màn hình
-  im lặng → an toàn.
-- `sudo systemctl restart sshd` — khởi động lại dịch vụ SSH để ông gác
-  cổng nạp bộ luật mới vào RAM.
+  Giao diện khởi tạo tài khoản ban đầu của n8n sẽ hiển thị bình thường mà không còn bị cảnh báo Secure Cookie nữa!
