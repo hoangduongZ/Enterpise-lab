@@ -1,0 +1,24 @@
+DANH SACH FILE TRONG GOI NEN (taphoacongnghe_ssl_configs.zip)
+=============================================================
+
+1. HUONG_DAN_SSL_DUCKDNS.md
+   - Tai lieu chi tiet giai thich nguyen nhan "Not secure", toan bo cac lenh da chay va huong dan quan tri.
+
+2. nginx-proxy/docker-compose.yml
+   - File docker compose cua Nginx Reverse Proxy da mo them port 443 va mount thu muc chung chi SSL (/etc/letsencrypt).
+
+3. nginx-proxy/conf.d/n8n.conf
+   - File cau hinh Nginx:
+     + Chuyen huong HTTP (80) sang HTTPS (443).
+     + Kich hoat SSL & HTTP/2 cho domain taphoacongnghe.duckdns.org.
+     + Proxy an toan sang n8n voi day du ho tro WebSocket/SSE.
+
+4. n8n/docker-compose.yml
+   - File docker compose cua n8n da cap nhat:
+     + N8N_HOST=taphoacongnghe.duckdns.org
+     + N8N_PROTOCOL=https
+     + WEBHOOK_URL=https://taphoacongnghe.duckdns.org/
+
+5. certbot-hooks/
+   - pre/stop-nginx.sh: Script tu dong dung Nginx truoc khi Certbot gia han SSL.
+   - post/start-nginx.sh: Script tu dong bat lai Nginx sau khi gia han SSL xong.

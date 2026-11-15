@@ -1,0 +1,25 @@
+services:
+  n8n:
+    image: n8nio/n8n:latest
+    container_name: n8n
+    restart: unless-stopped
+    networks:
+      - proxy-network
+    environment:
+      - N8N_HOST=taphoacongnghe.duckdns.org
+      - N8N_PORT=5678
+      - N8N_PROTOCOL=https
+      - WEBHOOK_URL=https://taphoacongnghe.duckdns.org/
+      - N8N_SECURE_COOKIE=false
+      - NODE_ENV=production
+      - GENERIC_TIMEZONE=Asia/Ho_Chi_Minh
+    volumes:
+      - n8n_data:/home/node/.n8n
+
+networks:
+  proxy-network:
+    external: true
+
+volumes:
+  n8n_data:
+    external: true
